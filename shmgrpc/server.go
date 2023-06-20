@@ -24,7 +24,7 @@ import (
 type Server struct {
 	handlers         grpchan.HandlerMap
 	basePath         string
-	ShmQueueInfo     QueueInfo
+	ShmQueueInfo     *QueueInfo
 	opts             handlerOpts
 	unaryInterceptor grpc.UnaryServerInterceptor
 }
@@ -46,25 +46,11 @@ type handlerOpts struct {
 	errFunc func(context.Context, *status.Status, http.ResponseWriter)
 }
 
-func NewServer(ShmQueueInfo QueueInfo, basePath string, opts ...ServerOption) *Server {
+func NewServer(ShmQueueInfo *QueueInfo, basePath string, opts ...ServerOption) *Server {
 	var s Server
 	s.basePath = basePath
 	s.handlers = grpchan.HandlerMap{}
 	s.ShmQueueInfo = ShmQueueInfo
-	return &s
-}
-
-// Attempt of a HandlerFunc
-// type HandlerFunc func(Response, *http.Request)
-
-// func (f HandlerFunc) ServeSHM() {
-// 	f()
-// }
-
-func (s *Server) RegisterService(desc *grpc.ServiceDesc, svr interface{}) {
-
-	s.handlers.RegisterService(desc, svr)
-	s.unaryInterceptor = nil
 
 	var key, qid uint
 	var err error
@@ -84,12 +70,31 @@ func (s *Server) RegisterService(desc *grpc.ServiceDesc, svr interface{}) {
 		fmt.Printf("SERVER: Create ipc queue id %d\n", qid)
 	}
 
+	ShmQueueInfo.Qid = qid
+
+	return &s
+}
+
+// Attempt of a HandlerFunc
+// type HandlerFunc func(Response, *http.Request)
+
+// func (f HandlerFunc) ServeSHM() {
+// 	f()
+// }
+
+func (s *Server) RegisterService(desc *grpc.ServiceDesc, svr interface{}) {
+
+	s.handlers.RegisterService(desc, svr)
+	s.unaryInterceptor = nil
+
+	qid := s.ShmQueueInfo.Qid
+
 	for {
 		//Check for valid meta data message
 		msg_req_meta := &ipc.Msgbuf{
 			Mtype: s.ShmQueueInfo.QueueReqTypeMeta}
 		//Mesrcv on response message type
-		err = ipc.Msgrcv(qid, msg_req_meta, 0)
+		err := ipc.Msgrcv(qid, msg_req_meta, 0)
 		if err != nil || msg_req_meta.Mtext == nil {
 			panic(fmt.Sprintf("SERVER: Failed to receive metadata message to ipc id %d: %s\n", qid, err))
 		} else {

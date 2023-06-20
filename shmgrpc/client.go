@@ -17,7 +17,7 @@ import (
 )
 
 type Channel struct {
-	ShmQueueInfo QueueInfo
+	ShmQueueInfo *QueueInfo
 	//URL of endpoint (might be useful in the future)
 	BaseURL *url.URL
 	//shm state info etc that might be needed
@@ -27,19 +27,7 @@ var _ grpc.ClientConnInterface = (*Channel)(nil)
 
 func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp interface{}, opts ...grpc.CallOption) error {
 
-	//Generate Key
-	key, err := ipc.Ftok(ch.ShmQueueInfo.QueuePath, ch.ShmQueueInfo.QueueId)
-	if err != nil {
-		panic(err)
-	}
-
-	//Get qid
-	qid, err := ipc.Msgget(key, ipc.IPC_CREAT|0666)
-	if err != nil {
-		panic(fmt.Sprintf("CLIENT: Failed to create ipc key %d: %s\n", key, err))
-	} else {
-		// fmt.Printf("CLIENT: Create ipc queue id %d\n", qid)
-	}
+	qid := ch.ShmQueueInfo.Qid
 
 	//Get Call Options for
 	copts := internal.GetCallOptions(opts)
@@ -49,7 +37,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	reqUrl.Path = path.Join(reqUrl.Path, methodName)
 	reqUrlStr := reqUrl.String()
 
-	ctx, err = internal.ApplyPerRPCCreds(ctx, copts, fmt.Sprintf("shm:0%s", reqUrlStr), true)
+	ctx, err := internal.ApplyPerRPCCreds(ctx, copts, fmt.Sprintf("shm:0%s", reqUrlStr), true)
 	if err != nil {
 		return err
 	}

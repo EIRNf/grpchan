@@ -9,6 +9,7 @@ import (
 type QueueInfo struct {
 	QueuePath         string
 	QueueId           uint
+	Qid               uint
 	QueueReqType      uint
 	QueueReqTypeMeta  uint
 	QueueRespType     uint
