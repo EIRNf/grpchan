@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"syscall"
 
 	"github.com/fullstorydev/grpchan/internal"
 
@@ -98,8 +99,13 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	msg_resp_meta := &ipc.Msgbuf{
 		Mtype: ch.ShmQueueInfo.QueueRespTypeMeta}
 
+retry:
 	err = ipc.Msgrcv(qid, msg_resp_meta, 0)
 	if err != nil {
+		if err == syscall.EINTR {
+			//Try again????
+			goto retry
+		}
 		panic(fmt.Sprintf("CLIENT: Failed to receive meta message to ipc id %d: %s\n", qid, err))
 	} else {
 		// fmt.Printf("CLIENT: Metadata Message %v meta receive to ipc id %d\n", msg_resp_meta.Mtext, qid)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"syscall"
 
 	"github.com/fullstorydev/grpchan"
 	"github.com/fullstorydev/grpchan/internal"
@@ -94,9 +95,14 @@ func (s *Server) RegisterService(desc *grpc.ServiceDesc, svr interface{}) {
 		msg_req := &ipc.Msgbuf{
 			Mtype: s.ShmQueueInfo.QueueReqTypeMeta}
 		//Mesrcv on response message type
+	retry:
 		err := ipc.Msgrcv(qid, msg_req, 0)
 		if err != nil || msg_req.Mtext == nil {
-			panic(fmt.Sprintf("SERVER: Failed to receive metadata message to ipc id %d: %s\n", qid, err))
+			if err == syscall.EINTR {
+				//Try again????
+				goto retry
+			}
+			panic(fmt.Sprintf("SERVER: Failed to receive message to ipc id %d: %s\n", qid, err))
 		} else {
 			// fmt.Printf("SERVER: Message %v receive to ipc id %d\n", msg_req.Mtext, qid)
 		}

@@ -62,7 +62,7 @@ var (
 	addr = flag.String("addr", "localhost:50051", "the address to connect to")
 )
 
-func BenchmarkServer(b *testing.B) {
+func BenchmarkHTTP2(b *testing.B) {
 	// errFunc := func(reqCtx context.Context, st *status.Status, response http.ResponseWriter) {
 
 	// }
