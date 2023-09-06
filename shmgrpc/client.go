@@ -54,6 +54,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	}
 
 	codec := encoding.GetCodec(grpcproto.Name)
+
 	if !cserPayloadWritten {
 		serializedPayload, err := codec.Marshal(req)
 		if err != nil {
@@ -62,6 +63,8 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		cserPayload = serializedPayload
 		cserPayloadWritten = true
 	}
+
+	// var reqPtr = unsafe
 
 	messageRequest := &ShmMessage{
 		Method:  methodName,
