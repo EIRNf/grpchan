@@ -26,9 +26,9 @@ import (
 func RunChannelBenchmarkCases(b *testing.B, ch grpc.ClientConnInterface, supportsFullDuplex bool) {
 	cli := NewTestServiceClient(ch)
 
-	// b.Run("unary_latency_stats", func(b *testing.B) { BenchmarkUnaryLatency(b, cli) })
+	b.Run("unary_latency_stats", func(b *testing.B) { BenchmarkUnaryLatency(b, cli) })
 	// b.Run("unary_latency_histogram", func(b *testing.B) { BenchmarkHistogramUnaryLatency(b, cli) })
-	b.RunParallel(func(pb *testing.PB) { BenchmarkUnaryLatencyParallel(pb, cli) })
+	// b.RunParallel(func(pb *testing.PB) { BenchmarkUnaryLatencyParallel(pb, cli) })
 }
 
 func BenchmarkHistogramUnaryLatency(b *testing.B, cli TestServiceClient) {

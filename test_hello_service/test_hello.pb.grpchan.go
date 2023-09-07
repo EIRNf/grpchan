@@ -23,7 +23,16 @@ func NewTestServiceChannelClient(ch grpc.ClientConnInterface) TestServiceClient 
 
 func (c *testServiceChannelClient) SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error) {
 	out := new(HelloReply)
-	err := c.ch.Invoke(ctx, "/test_service.TestService/SayHello", in, out, opts...)
+	err := c.ch.Invoke(ctx, "/test_hello_service.TestService/SayHello", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *testServiceChannelClient) SayGoodbye(ctx context.Context, in *GoodbyeRequest, opts ...grpc.CallOption) (*GoodbyeReply, error) {
+	out := new(GoodbyeReply)
+	err := c.ch.Invoke(ctx, "/test_hello_service.TestService/SayGoodbye", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -24,6 +24,8 @@ func RunChannelTestCases(t *testing.T, ch grpc.ClientConnInterface, supportsFull
 	cli := NewTestServiceClient(ch)
 
 	t.Run("hello", func(t *testing.T) { testHello(t, cli) })
+	t.Run("goodbye", func(t *testing.T) { testGoodbye(t, cli) })
+
 }
 
 const (
@@ -33,7 +35,7 @@ const (
 func testHello(t *testing.T, cli TestServiceClient) {
 	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
 
-	name := flag.String("name", defaultName, "Name to greet")
+	name := flag.String("helloname", defaultName, "Name to greet")
 
 	t.Run("success", func(t *testing.T) {
 		req := &HelloRequest{Name: *name}
@@ -42,6 +44,25 @@ func testHello(t *testing.T, cli TestServiceClient) {
 			t.Fatalf("RPC failed: %v", err)
 		}
 		if !bytes.Equal([]byte("Hello world"), []byte(rsp.GetMessage())) {
+			t.Fatalf("wrong payload returned: expecting %v; got %v", testPayload, rsp.GetMessage())
+		}
+
+	})
+
+}
+
+func testGoodbye(t *testing.T, cli TestServiceClient) {
+	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
+
+	name := flag.String("goodbyename", defaultName, "Name to greet")
+
+	t.Run("success", func(t *testing.T) {
+		req := &GoodbyeRequest{Name: *name}
+		rsp, err := cli.SayGoodbye(ctx, req)
+		if err != nil {
+			t.Fatalf("RPC failed: %v", err)
+		}
+		if !bytes.Equal([]byte("Goodbye world"), []byte(rsp.GetMessage())) {
 			t.Fatalf("wrong payload returned: expecting %v; got %v", testPayload, rsp.GetMessage())
 		}
 

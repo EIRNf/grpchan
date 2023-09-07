@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	TestService_SayHello_FullMethodName = "/test_service.TestService/SayHello"
+	TestService_SayHello_FullMethodName   = "/test_hello_service.TestService/SayHello"
+	TestService_SayGoodbye_FullMethodName = "/test_hello_service.TestService/SayGoodbye"
 )
 
 // TestServiceClient is the client API for TestService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TestServiceClient interface {
 	SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error)
+	SayGoodbye(ctx context.Context, in *GoodbyeRequest, opts ...grpc.CallOption) (*GoodbyeReply, error)
 }
 
 type testServiceClient struct {
@@ -46,11 +48,21 @@ func (c *testServiceClient) SayHello(ctx context.Context, in *HelloRequest, opts
 	return out, nil
 }
 
+func (c *testServiceClient) SayGoodbye(ctx context.Context, in *GoodbyeRequest, opts ...grpc.CallOption) (*GoodbyeReply, error) {
+	out := new(GoodbyeReply)
+	err := c.cc.Invoke(ctx, TestService_SayGoodbye_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TestServiceServer is the server API for TestService service.
 // All implementations must embed UnimplementedTestServiceServer
 // for forward compatibility
 type TestServiceServer interface {
 	SayHello(context.Context, *HelloRequest) (*HelloReply, error)
+	SayGoodbye(context.Context, *GoodbyeRequest) (*GoodbyeReply, error)
 	mustEmbedUnimplementedTestServiceServer()
 }
 
@@ -60,6 +72,9 @@ type UnimplementedTestServiceServer struct {
 
 func (UnimplementedTestServiceServer) SayHello(context.Context, *HelloRequest) (*HelloReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SayHello not implemented")
+}
+func (UnimplementedTestServiceServer) SayGoodbye(context.Context, *GoodbyeRequest) (*GoodbyeReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SayGoodbye not implemented")
 }
 func (UnimplementedTestServiceServer) mustEmbedUnimplementedTestServiceServer() {}
 
@@ -92,16 +107,38 @@ func _TestService_SayHello_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TestService_SayGoodbye_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GoodbyeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TestServiceServer).SayGoodbye(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TestService_SayGoodbye_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TestServiceServer).SayGoodbye(ctx, req.(*GoodbyeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TestService_ServiceDesc is the grpc.ServiceDesc for TestService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TestService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "test_service.TestService",
+	ServiceName: "test_hello_service.TestService",
 	HandlerType: (*TestServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "SayHello",
 			Handler:    _TestService_SayHello_Handler,
+		},
+		{
+			MethodName: "SayGoodbye",
+			Handler:    _TestService_SayGoodbye_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

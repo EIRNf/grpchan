@@ -23,7 +23,10 @@ func main() {
 	//Register Server and instantiate with necessary information
 	//Server can create queue
 	//Server Can have
-	grpchantesting.RegisterTestServiceServer(svr, svc)
+	go grpchantesting.RegisterTestServiceServer(svr, svc)
+
+	//Begin handling methods from shm queue
+	go svr.HandleMethods(svc)
 
 	defer svr.Stop()
 

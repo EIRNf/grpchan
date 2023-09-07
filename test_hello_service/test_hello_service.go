@@ -15,3 +15,8 @@ func (s *TestServer) SayHello(ctx context.Context, in *HelloRequest) (*HelloRepl
 	// log.Printf("Received: %v", in.GetName())
 	return &HelloReply{Message: "Hello " + in.GetName()}, nil
 }
+
+func (s *TestServer) SayGoodbye(ctx context.Context, in *GoodbyeRequest) (*GoodbyeReply, error) {
+	// log.Printf("Received: %v", in.GetName())
+	return &GoodbyeReply{Message: "Goodbye " + in.GetName()}, nil
+}

@@ -162,7 +162,7 @@ poll:
 }
 
 func GetQueue(shmaddr uintptr) *Queue {
-	queuePtr := (*Queue)(unsafe.Pointer(shmaddr)) //TODO: shmaddr
+	queuePtr := (*Queue)(unsafe.Pointer(shmaddr)) //TODO: this is correct actually
 	// fmt.Printf("unsafeGetBytes pointer: %p\n", &queuePtr)
 	return queuePtr
 }
@@ -205,7 +205,6 @@ func dequeue(queue *Queue) Message {
 	return message
 }
 
-// Detach used to detach from memory segment
 func Remove(shm_id uintptr) error {
 	_, _, errno := syscall.Syscall(syscall.SYS_SHMCTL, shm_id, 0, 0)
 	if errno != 0 {
@@ -214,6 +213,7 @@ func Remove(shm_id uintptr) error {
 	return nil
 }
 
+// Detach used to detach from memory segment
 func Detach(shmaddr uintptr) error {
 	_, _, errno := syscall.Syscall(syscall.SYS_SHMDT, shmaddr, 0, 0)
 	if errno != 0 {
