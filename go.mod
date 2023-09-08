@@ -9,7 +9,6 @@ require (
 	github.com/jhump/goprotoc v0.5.0
 	github.com/jhump/protoreflect v1.11.0
 	github.com/loov/hrtime v1.0.3
-	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	golang.org/x/sys v0.0.0-20210304124612-50617c2ba197 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013

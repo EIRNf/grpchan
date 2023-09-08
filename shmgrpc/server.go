@@ -74,37 +74,32 @@ type handlerOpts struct {
 	errFunc func(context.Context, *status.Status, http.ResponseWriter)
 }
 
-func NewServer(ShmQueueInfo *QueueInfo, basePath string, opts ...ServerOption) *Server {
+func NewServer(basePath string, opts ...ServerOption) *Server {
 	var s Server
 	s.basePath = basePath
 	s.handlers = grpchan.HandlerMap{}
-	s.ShmQueueInfo = ShmQueueInfo
 
-	//Attach to shm
-	// s.ShmQueueInfo.RequestShmaddr = AttachToShmRegion(s.ShmQueueInfo.RequestShmid, uintptr(SegFlag))
+	//Gather Keys based on name
+	requestKey, responseKey := GatherShmKeys(basePath)
 
-	s.requestQeuue = initializeQueue(ShmQueueInfo.RequestShmaddr)
-	s.responseQueue = initializeQueue(ShmQueueInfo.ResponseShmaddr)
+	//Initilize ShmQueueInfo
+	//Client -> Server Shm
+	requestShmid, requestShmaddr := InitializeShmRegion(requestKey, Size, uintptr(ServerSegFlag))
+	//Server -> Client Shm
+	responseShmid, responseShmaddr := InitializeShmRegion(responseKey, Size, uintptr(ServerSegFlag))
 
-	// var key, qid uint
-	// var err error
+	qi := QueueInfo{
+		RequestShmid:    requestShmid,
+		RequestShmaddr:  requestShmaddr,
+		ResponseShmid:   responseShmid,
+		ResponseShmaddr: responseShmaddr,
+	}
 
-	// // //Instantiate queue for processing
-	// // key, err = ipc.Ftok(s.ShmQueueInfo.QueuePath, s.ShmQueueInfo.QueueId)
-	// // if err != nil {
-	// // 	panic(fmt.Sprintf("SERVER: Failed to generate key: %s\n", err))
-	// // } else {
-	// // 	// fmt.Printf("SERVER: Generate key %d\n", key)
-	// // }
+	s.ShmQueueInfo = &qi
 
-	// // qid, err = ipc.Msgget(key, ipc.IPC_CREAT|0666)
-	// // if err != nil {
-	// // 	panic(fmt.Sprintf("SERVER: Failed to create ipc key %d: %s\n", key, err))
-	// // } else {
-	// // 	// fmt.Printf("SERVER: Create ipc queue id %d\n", qid)
-	// // }
-
-	// // s.ShmQueueInfo.Qid = qid
+	//Initiliaze Queue
+	s.requestQeuue = initializeQueue(s.ShmQueueInfo.RequestShmaddr)
+	s.responseQueue = initializeQueue(s.ShmQueueInfo.ResponseShmaddr)
 
 	return &s
 }
@@ -262,11 +257,14 @@ func (s *Server) HandleMethods(svr interface{}) {
 
 // Shutdown the server
 func (s *Server) Stop() {
-	// requestQueue := GetQueue(s.ShmQueueInfo.RequestShmaddr)
-	// responseQueue := GetQueue(s.ShmQueueInfo.ResponseShmaddr)
 	StopPollingQueue(s.requestQeuue)
 	StopPollingQueue(s.responseQueue)
 
+	defer Detach(s.ShmQueueInfo.RequestShmaddr)
+	defer Detach(s.ShmQueueInfo.ResponseShmaddr)
+
+	defer Remove(s.ShmQueueInfo.RequestShmid)
+	defer Remove(s.ShmQueueInfo.ResponseShmid)
 	// close(responseQueue.DetachQueue)
 
 }

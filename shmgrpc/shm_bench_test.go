@@ -10,19 +10,9 @@ import (
 
 func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 
-	requestShmid, requestShmaddr := shmgrpc.InitializeShmRegion(shmgrpc.RequestKey, shmgrpc.Size, uintptr(shmgrpc.ServerSegFlag))
-	responseShmid, responseShmaddr := shmgrpc.InitializeShmRegion(shmgrpc.ResponseKey, shmgrpc.Size, uintptr(shmgrpc.ServerSegFlag))
-
-	qi := shmgrpc.QueueInfo{
-		RequestShmid:    requestShmid,
-		RequestShmaddr:  requestShmaddr,
-		ResponseShmid:   responseShmid,
-		ResponseShmaddr: responseShmaddr,
-	}
-
 	// svr := &grpchantesting.TestServer{}
 	svc := &test_hello_service.TestServer{}
-	svr := shmgrpc.NewServer(&qi, "/")
+	svr := shmgrpc.NewServer("/hello")
 
 	//Register Server and instantiate with necessary information
 	go test_hello_service.RegisterTestServiceServer(svr, svc)
@@ -39,17 +29,11 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	// Construct Channel with necessary parameters to talk to the Server
 	cc := shmgrpc.Channel{
 		BaseURL:      u,
-		ShmQueueInfo: &qi,
+		ShmQueueInfo: svr.ShmQueueInfo,
 	}
 
 	// grpchantesting.RunChannelTestCases(t, &cc, true)
 	test_hello_service.RunChannelBenchmarkCases(b, &cc, false)
 
 	svr.Stop()
-
-	defer shmgrpc.Detach(requestShmaddr)
-	defer shmgrpc.Detach(responseShmaddr)
-
-	defer shmgrpc.Remove(requestShmid)
-	defer shmgrpc.Remove(responseShmid)
 }

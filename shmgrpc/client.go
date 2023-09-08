@@ -16,11 +16,13 @@ import (
 	grpchantesting "github.com/fullstorydev/grpchan/grpchantesting"
 )
 
+// All required info for a client to communicate with a server
 type Channel struct {
 	ShmQueueInfo *QueueInfo
 	//URL of endpoint (might be useful in the future)
 	BaseURL *url.URL
 	//shm state info etc that might be needed
+	ServiceName string
 }
 
 var _ grpc.ClientConnInterface = (*Channel)(nil)
@@ -37,6 +39,28 @@ var (
 	cserPayloadResp        grpchantesting.Message
 	cserPayloadRespWritten bool = false
 )
+
+func NewChannel(url *url.URL, basePath string) *Channel {
+	ch := new(Channel)
+	ch.BaseURL = url
+
+	//Initilize ShmQueueInfo
+	requestKey, responseKey := GatherShmKeys(basePath)
+
+	//Client -> Server Shm
+	requestShmid, requestShmaddr := InitializeShmRegion(requestKey, Size, uintptr(ServerSegFlag))
+	//Server -> Client Shm
+	responseShmid, responseShmaddr := InitializeShmRegion(responseKey, Size, uintptr(ServerSegFlag))
+
+	qi := QueueInfo{
+		RequestShmid:    requestShmid,
+		RequestShmaddr:  requestShmaddr,
+		ResponseShmid:   responseShmid,
+		ResponseShmaddr: responseShmaddr,
+	}
+	ch.ShmQueueInfo = &qi
+	return ch
+}
 
 func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp interface{}, opts ...grpc.CallOption) error {
 

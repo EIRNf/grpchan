@@ -2,8 +2,6 @@ package shmgrpc
 
 import (
 	"errors"
-	"os"
-	"syscall"
 	"unsafe"
 )
 
@@ -28,21 +26,6 @@ type Queue struct {
 	StopPolling bool // DetachQueue chan bool
 }
 
-// Lazy init shared memory keys
-// var RequestKey uintptr = 1234  // Shared memory request key
-// var ResponseKey uintptr = 1234 // Shared memory response key
-
-const (
-	RequestKey    = 1234  // Shared memory request key
-	ResponseKey   = 1235  // Shared memory response key
-	Size          = 16384 //+ 40 // Shared memory size
-	Mode          = 0644  // Permissions for shared memory
-	ServerSegFlag = IPC_CREAT | IPC_EXCL | Mode
-	ClientSegFlag = IPC_CREAT | Mode
-	MessageSize   = unsafe.Sizeof(Message{})
-	QueueSize     = int32(Size) / int32(MessageSize)
-)
-
 func initializeQueue(shmaddr uintptr) *Queue {
 	// Initialize the circular buffer structure
 	queue := Queue{
@@ -57,48 +40,6 @@ func initializeQueue(shmaddr uintptr) *Queue {
 	queuePtr := GetQueue(shmaddr)
 	*queuePtr = queue
 	return queuePtr
-}
-
-// func GatherShmKeys() (uintptr, uintptr) {
-
-// 	var requestEnvString = os.Getenv("SHM_REQUEST_KEY")
-// 	var responseEnvString = os.Getenv("SHM_RESPONSE_KEY")
-
-// 	//Convert it to a uint64
-// 	requestInt, _ := strconv.ParseUint(requestEnvString, 10, 64)
-// 	responseInt, _ := strconv.ParseUint(responseEnvString, 10, 64)
-
-// 	//Convert the integer to a uintptr type
-// 	requestKey := uintptr(requestInt)
-// 	responseKey := uintptr(responseInt)
-
-// 	return requestKey, re
-// }
-
-func InitializeShmRegion(key, size, segFlag uintptr) (uintptr, uintptr) {
-
-	// Create a new shared memory segment
-	shmid, _, errno := syscall.RawSyscall(syscall.SYS_SHMGET, key, size, segFlag)
-	if errno != 0 {
-		os.NewSyscallError("SYS_SHMGET", errno)
-	}
-
-	shmaddr, _, errno := syscall.RawSyscall(syscall.SYS_SHMAT, shmid, uintptr(0), segFlag)
-	if errno != 0 {
-		os.NewSyscallError("SYS_SHMAT", errno)
-	}
-
-	return shmid, shmaddr
-}
-
-func AttachToShmRegion(shmid, segFlag uintptr) uintptr {
-
-	shmaddr, _, errno := syscall.RawSyscall(syscall.SYS_SHMAT, shmid, uintptr(0), segFlag)
-	if errno != 0 {
-		os.NewSyscallError("SYS_SHMAT", errno)
-	}
-
-	return shmaddr
 }
 
 func StopPollingQueue(queuePtr *Queue) {
@@ -203,21 +144,4 @@ func dequeue(queue *Queue) Message {
 	queue.Count--
 	// fmt.Printf("Dequeue Count: %d\n", queue.Count)
 	return message
-}
-
-func Remove(shm_id uintptr) error {
-	_, _, errno := syscall.Syscall(syscall.SYS_SHMCTL, shm_id, 0, 0)
-	if errno != 0 {
-		return errors.New(errno.Error())
-	}
-	return nil
-}
-
-// Detach used to detach from memory segment
-func Detach(shmaddr uintptr) error {
-	_, _, errno := syscall.Syscall(syscall.SYS_SHMDT, shmaddr, 0, 0)
-	if errno != 0 {
-		return errors.New(errno.Error())
-	}
-	return nil
 }
