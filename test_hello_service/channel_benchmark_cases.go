@@ -26,7 +26,9 @@ import (
 func RunChannelBenchmarkCases(b *testing.B, ch grpc.ClientConnInterface, supportsFullDuplex bool) {
 	cli := NewTestServiceClient(ch)
 
-	b.Run("hello", func(b *testing.B) { BenchmarkHelloHistogram(b, cli) })
+	// b.Run("hello", func(b *testing.B) { BenchmarkHelloHistogram(b, cli) })
+	b.Run("hello", func(b *testing.B) { BenchmarkUnaryLatency(b, cli) })
+	// b.SetParallelism(1)
 	// b.RunParallel(func(pb *testing.PB) { BenchmarkUnaryLatencyParallel(pb, cli) })
 
 }
@@ -47,7 +49,27 @@ func BenchmarkUnaryLatencyParallel(pb *testing.PB, cli TestServiceClient) {
 		}
 
 	}
+}
 
+func BenchmarkUnaryLatency(b *testing.B, cli TestServiceClient) {
+	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
+
+	name := defaultName
+	for i := 0; i < b.N; i++ {
+		req := &HelloRequest{Name: name}
+		rsp, err := cli.SayHello(ctx, req)
+		if err != nil {
+			b.Fatalf("RPC failed: %v", err)
+		}
+		if !bytes.Equal([]byte("Hello world"), []byte(rsp.GetMessage())) {
+			b.Fatalf("wrong payload returned: expecting %v; got %v", testPayload, rsp.GetMessage())
+		}
+		// checkRequestHeadersBench(b, testOutgoingMd, rsp.Headers)
+
+		// checkMetadataBench(b, testMdHeaders, hdr, "header")
+		// checkMetadataBench(b, testMdTrailers, tlr, "trailer")
+
+	}
 }
 
 func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
@@ -56,7 +78,7 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 
 	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
 
-	name := flag.String("benchname", defaultName, "Name to greet")
+	name := flag.String("histo_name", defaultName, "Name to greet")
 
 	// b.Run("success", func(b *testing.B) {
 	for bench.Next() {
@@ -68,7 +90,6 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 		if !bytes.Equal([]byte("Hello world"), []byte(rsp.GetMessage())) {
 			b.Fatalf("wrong payload returned: expecting %v; got %v", testPayload, rsp.GetMessage())
 		}
-
 	}
 
 	fmt.Println(bench.Histogram(10))
