@@ -1,7 +1,6 @@
 package shmgrpc_test
 
 import (
-	"fmt"
 	"net/url"
 	"testing"
 
@@ -24,7 +23,7 @@ func TestGrpcOverSharedMemory(t *testing.T) {
 	go svr.HandleMethods(svc)
 
 	//Placeholder URL????
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:8080"))
+	u, err := url.Parse("http://127.0.0.1:8080")
 	if err != nil {
 		t.Fatalf("failed to parse base URL: %v", err)
 	}

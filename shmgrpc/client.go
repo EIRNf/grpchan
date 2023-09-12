@@ -12,8 +12,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
 	grpcproto "google.golang.org/grpc/encoding/proto"
-
-	grpchantesting "github.com/fullstorydev/grpchan/grpchantesting"
 )
 
 // All required info for a client to communicate with a server
@@ -23,6 +21,12 @@ type Channel struct {
 	BaseURL *url.URL
 	//shm state info etc that might be needed
 	ServiceName string
+	//Connection metadata
+	Metadata MessageMeta
+}
+
+type MessageMeta struct {
+	NumMessages int32
 }
 
 var _ grpc.ClientConnInterface = (*Channel)(nil)
@@ -34,10 +38,8 @@ var (
 	cserRespStruct  ShmMessage
 	cserRespWritten bool = false
 
-	cserPayload            []byte
-	cserPayloadWritten     bool = false
-	cserPayloadResp        grpchantesting.Message
-	cserPayloadRespWritten bool = false
+	cserPayload        []byte
+	cserPayloadWritten bool = false
 )
 
 func NewChannel(url *url.URL, basePath string) *Channel {
@@ -59,7 +61,17 @@ func NewChannel(url *url.URL, basePath string) *Channel {
 		ResponseShmaddr: responseShmaddr,
 	}
 	ch.ShmQueueInfo = &qi
+
+	ch.Metadata = MessageMeta{
+		NumMessages: 0,
+	}
+
 	return ch
+}
+
+func (ch *Channel) incrementNumMessages() {
+	//We can wrap this in a lock if necessary
+	ch.Metadata.NumMessages += 1
 }
 
 func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp interface{}, opts ...grpc.CallOption) error {
@@ -126,22 +138,28 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	responseQueue := GetQueue(ch.ShmQueueInfo.ResponseShmaddr)
 
 	message := Message{
-		Header: MessageHeader{Size: int32(cserReqLen)},
-		Data:   data,
+		Header: MessageHeader{
+			Size: int32(cserReqLen),
+			Tag:  ch.Metadata.NumMessages},
+		Data: data,
 	}
 
 	// pass into shared mem queue
 	produceMessage(requestQueue, message)
 
 	//Receive Request
-	read_message, err := consumeMessage(responseQueue)
+	respMessage, err := consumeMessage(responseQueue)
 	if err != nil {
 		//This should hopefully not happen
 		return err
 	}
 
+	if respMessage.Header.Tag != ch.Metadata.NumMessages {
+		panic("Mismatched tag")
+	}
+
 	//Parse bytes into object
-	slice := read_message.Data[0:read_message.Header.Size]
+	slice := respMessage.Data[0:respMessage.Header.Size]
 	var message_resp_meta ShmMessage
 	if !cserRespWritten {
 		json.Unmarshal(slice, &message_resp_meta)
@@ -160,19 +178,21 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	copts.SetTrailers(message_resp_meta.Trailers)
 
 	// ipc.Msgctl(qid, ipc.IPC_RMID)
-	var ret_err error
+	// var ret_err error
 	// if !cserPayloadRespWritten {
 	// copy(cserPayloadResp, resp)
-	ret_err = codec.Unmarshal(payload, resp)
+	ret_err := codec.Unmarshal(payload, resp)
 	// cserPayloadRespWritten = true
 	// }
 	// resp = cserPayloadResp
+
+	//Update total number of back and forth messages
+	ch.incrementNumMessages()
 
 	if !NO_SERIALIZATION {
 		cserReqWritten = false
 		cserRespWritten = false
 		cserPayloadWritten = false
-		cserPayloadRespWritten = false
 	}
 
 	return ret_err

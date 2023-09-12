@@ -22,19 +22,41 @@ import (
 //
 // The test cases will be defined as child tests by invoking t.Run on the given
 // *testing.T.
+
 func RunChannelBenchmarkCases(b *testing.B, ch grpc.ClientConnInterface, supportsFullDuplex bool) {
 	cli := NewTestServiceClient(ch)
 
-	b.Run("hello", func(b *testing.B) { BenchmarkHello(b, cli) })
+	b.Run("hello", func(b *testing.B) { BenchmarkHelloHistogram(b, cli) })
+	// b.RunParallel(func(pb *testing.PB) { BenchmarkUnaryLatencyParallel(pb, cli) })
+
 }
 
-func BenchmarkHello(b *testing.B, cli TestServiceClient) {
+func BenchmarkUnaryLatencyParallel(pb *testing.PB, cli TestServiceClient) {
+	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
+
+	var name = defaultName
+
+	for pb.Next() {
+		req := &HelloRequest{Name: name}
+		rsp, err := cli.SayHello(ctx, req)
+
+		if err != nil {
+		}
+		if rsp != nil {
+
+		}
+
+	}
+
+}
+
+func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 
 	bench := hrtime.NewBenchmark(200000)
 
 	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
 
-	name := flag.String("name", defaultName, "Name to greet")
+	name := flag.String("benchname", defaultName, "Name to greet")
 
 	// b.Run("success", func(b *testing.B) {
 	for bench.Next() {

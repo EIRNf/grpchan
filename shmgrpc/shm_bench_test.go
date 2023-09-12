@@ -4,18 +4,18 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/fullstorydev/grpchan/grpchantesting"
 	"github.com/fullstorydev/grpchan/shmgrpc"
-	"github.com/fullstorydev/grpchan/test_hello_service"
 )
 
 func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 
 	// svr := &grpchantesting.TestServer{}
-	svc := &test_hello_service.TestServer{}
+	svc := &grpchantesting.TestServer{}
 	svr := shmgrpc.NewServer("/hello")
 
 	//Register Server and instantiate with necessary information
-	go test_hello_service.RegisterTestServiceServer(svr, svc)
+	grpchantesting.RegisterTestServiceServer(svr, svc)
 
 	//Begin handling methods from shm queue
 	go svr.HandleMethods(svc)
@@ -33,7 +33,7 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	}
 
 	// grpchantesting.RunChannelTestCases(t, &cc, true)
-	test_hello_service.RunChannelBenchmarkCases(b, &cc, false)
+	grpchantesting.RunChannelBenchmarkCases(b, &cc, false)
 
-	svr.Stop()
+	defer svr.Stop()
 }

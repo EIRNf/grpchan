@@ -124,6 +124,7 @@ func (s *Server) HandleMethods(svr interface{}) {
 			//the channel has been shut down
 		}
 
+		messageTag := message.Header.Tag
 		slice := message.Data[0:message.Header.Size]
 		var message_req_meta ShmMessage
 		if !sSerReqWritten {
@@ -238,8 +239,10 @@ func (s *Server) HandleMethods(svr interface{}) {
 		}
 
 		message_response := Message{
-			Header: MessageHeader{Size: int32(sSerRespLen)},
-			Data:   data,
+			Header: MessageHeader{
+				Size: int32(sSerRespLen),
+				Tag:  messageTag},
+			Data: data,
 		}
 
 		produceMessage(responseQueue, message_response)

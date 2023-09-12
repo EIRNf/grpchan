@@ -22,16 +22,21 @@ const (
 // Hash name get key
 func HashNameGetKey(input string) uintptr {
 	h := fnv.New64a()
-
 	h.Write([]byte(input))
-
 	return uintptr(h.Sum64())
 }
 
 // Use a key value store to store keys, query for
 func GatherShmKeys(fullServiceName string) (uintptr, uintptr) {
 	//Option 1, use a key value store like redis
-	//Option 2, use a hash of ServiceName
+
+	//Option 2, use a hash of ServiceName, this is like not good for a few reasons.
+	// Collisions "could" still occur, adding 1 makes this worse but I dont know enough cryptography to fully understand the consequeunces of my actions
+	// This model falls apart in the face of multiple clients or multiple servers. It also falls apart at multiple instances
+	// A proper solution is to implement something like grpc dialer which "i think" actually resovles for and sets up the
+	// tcp connection by actually beginning a handshake with the given IP and Socket. This isn't really an option for
+	// us but we need a way of dynamically creating regions of shared memory that can be easily and correctly resolved for
+	// by a client
 
 	//Convert the integer to a uintptr type
 	requestKey := HashNameGetKey(fullServiceName)
