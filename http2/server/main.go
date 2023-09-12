@@ -25,7 +25,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/fullstorydev/grpchan/grpchantesting"
+	"github.com/fullstorydev/grpchan/test_hello_service"
 	"google.golang.org/grpc"
 )
 
@@ -35,7 +35,7 @@ var (
 
 func main() {
 
-	svc := &grpchantesting.TestServer{}
+	svc := &test_hello_service.TestServer{}
 	// svr := httpgrpc.NewServer(httpgrpc.WithBasePath("/foo/"), httpgrpc.ErrorRenderer(errFunc))
 
 	flag.Parse()
@@ -45,7 +45,7 @@ func main() {
 	}
 
 	svr := grpc.NewServer()
-	grpchantesting.RegisterTestServiceServer(svr, svc)
+	test_hello_service.RegisterTestServiceServer(svr, svc)
 
 	log.Printf("server listening at %v", lis.Addr())
 	if err := svr.Serve(lis); err != nil {

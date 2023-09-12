@@ -50,9 +50,9 @@ func NewChannel(url *url.URL, basePath string) *Channel {
 	requestKey, responseKey := GatherShmKeys(basePath)
 
 	//Client -> Server Shm
-	requestShmid, requestShmaddr := InitializeShmRegion(requestKey, Size, uintptr(ServerSegFlag))
+	requestShmid, requestShmaddr := InitializeShmRegion(requestKey, Size, uintptr(ClientSegFlag))
 	//Server -> Client Shm
-	responseShmid, responseShmaddr := InitializeShmRegion(responseKey, Size, uintptr(ServerSegFlag))
+	responseShmid, responseShmaddr := InitializeShmRegion(responseKey, Size, uintptr(ClientSegFlag))
 
 	qi := QueueInfo{
 		RequestShmid:    requestShmid,
@@ -181,7 +181,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	// var ret_err error
 	// if !cserPayloadRespWritten {
 	// copy(cserPayloadResp, resp)
-	ret_err := codec.Unmarshal(payload, resp)
+
 	// cserPayloadRespWritten = true
 	// }
 	// resp = cserPayloadResp
@@ -195,6 +195,9 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		cserPayloadWritten = false
 	}
 
+	// fmt.Printf("finished message num %d:", ch.Metadata.NumMessages)
+
+	ret_err := codec.Unmarshal(payload, resp)
 	return ret_err
 }
 

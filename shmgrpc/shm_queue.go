@@ -2,7 +2,6 @@ package shmgrpc
 
 import (
 	"errors"
-	"sync"
 	"unsafe"
 )
 
@@ -19,7 +18,7 @@ type Message struct {
 type Queue struct {
 	// ProducerFlag bool
 	// ConsumerFlag bool
-	mu          sync.Mutex
+	// mu          sync.Mutex
 	Head        int32
 	Tail        int32
 	Count       int32
@@ -111,21 +110,21 @@ func GetQueue(shmaddr uintptr) *Queue {
 }
 
 func isFull(queue *Queue) bool {
-	queue.mu.Lock()
+	// queue.mu.Lock()
 	isFull := (queue.Tail+1)%queue.BufferSize == queue.Head
-	queue.mu.Unlock()
+	// queue.mu.Unlock()
 	return isFull
 }
 
 func isEmpty(queue *Queue) bool {
-	queue.mu.Lock()
+	// queue.mu.Lock()
 	isEmpty := queue.Head == queue.Tail
-	queue.mu.Unlock()
+	// queue.mu.Unlock()
 	return isEmpty
 }
 
 func enqueue(queue *Queue, message *Message) {
-	queue.mu.Lock()
+	// queue.mu.Lock()
 	messageArray := (*[QueueSize]Message)(unsafe.Pointer(uintptr(unsafe.Pointer(queue)) + unsafe.Sizeof(*queue)))
 	messageArray[queue.Tail] = *message
 	queue.Count++
@@ -135,15 +134,15 @@ func enqueue(queue *Queue, message *Message) {
 	// fmt.Printf("Array pointer: %p\n", &messageArray[queue.Tail])
 	// fmt.Printf("Array pos: %d\n", messageArray[queue.Tail])
 	queue.Tail = (queue.Tail + 1) % queue.BufferSize
-	queue.mu.Unlock()
+	// queue.mu.Unlock()
 }
 
 func dequeue(queue *Queue) Message {
-	queue.mu.Lock()
+	// queue.mu.Lock()
 	message := (*[QueueSize]Message)(unsafe.Pointer(uintptr(unsafe.Pointer(queue)) + unsafe.Sizeof(*queue)))[queue.Head]
 	queue.Head = (queue.Head + 1) % queue.BufferSize
-	queue.mu.Unlock()
 	queue.Count--
+	// queue.mu.Unlock()
 	// fmt.Printf("Dequeue Count: %d\n", queue.Count)
 	return message
 }

@@ -5,7 +5,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/fullstorydev/grpchan/grpchantesting"
+	"github.com/fullstorydev/grpchan/test_hello_service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -82,5 +82,5 @@ func BenchmarkServer(b *testing.B) {
 	}
 	defer conn.Close()
 
-	grpchantesting.RunChannelBenchmarkCases(b, conn, false)
+	test_hello_service.RunChannelBenchmarkCases(b, conn, false)
 }

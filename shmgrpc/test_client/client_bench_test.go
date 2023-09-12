@@ -4,8 +4,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/fullstorydev/grpchan/grpchantesting"
 	"github.com/fullstorydev/grpchan/shmgrpc"
+	"github.com/fullstorydev/grpchan/test_hello_service"
 )
 
 func BenchmarkGrpcOverSharedMemory(b *testing.B) {
@@ -16,13 +16,13 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	}
 
 	// Construct Channel with necessary parameters to talk to the Server
-	cc := shmgrpc.NewChannel(u, "hello")
+	cc := shmgrpc.NewChannel(u, "/hello")
 
 	// grpchantesting.RunChannelTestCases(t, &cc, true)
-	grpchantesting.RunChannelBenchmarkCases(b, cc, false)
+	test_hello_service.RunChannelBenchmarkCases(b, cc, false)
 
-	defer shmgrpc.StopPollingQueue(shmgrpc.GetQueue(cc.ShmQueueInfo.RequestShmaddr))
-	defer shmgrpc.StopPollingQueue(shmgrpc.GetQueue(cc.ShmQueueInfo.ResponseShmaddr))
+	shmgrpc.StopPollingQueue(shmgrpc.GetQueue(cc.ShmQueueInfo.RequestShmaddr))
+	shmgrpc.StopPollingQueue(shmgrpc.GetQueue(cc.ShmQueueInfo.ResponseShmaddr))
 
 	defer shmgrpc.Detach(cc.ShmQueueInfo.RequestShmaddr)
 	defer shmgrpc.Detach(cc.ShmQueueInfo.ResponseShmaddr)

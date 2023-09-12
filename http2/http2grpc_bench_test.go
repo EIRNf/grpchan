@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/fullstorydev/grpchan/grpchantesting"
+	"github.com/fullstorydev/grpchan/test_hello_service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -67,10 +67,10 @@ func BenchmarkServer(b *testing.B) {
 	lis := bufconn.Listen(buffer)
 	ctx := context.Background()
 
-	svc := &grpchantesting.TestServer{}
+	svc := &test_hello_service.TestServer{}
 	svr := grpc.NewServer()
 	// svr := httpgrpc.NewServer(httpgrpc.WithBasePath("/foo/"), httpgrpc.ErrorRenderer(errFunc))
-	grpchantesting.RegisterTestServiceServer(svr, svc)
+	test_hello_service.RegisterTestServiceServer(svr, svc)
 
 	go svr.Serve(lis)
 
@@ -82,7 +82,7 @@ func BenchmarkServer(b *testing.B) {
 		log.Printf("error connecting to server: %v", err)
 	}
 
-	grpchantesting.RunChannelBenchmarkCases(b, conn, false)
+	test_hello_service.RunChannelBenchmarkCases(b, conn, false)
 
 	defer svr.Stop()
 

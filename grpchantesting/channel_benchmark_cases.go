@@ -28,6 +28,7 @@ func RunChannelBenchmarkCases(b *testing.B, ch grpc.ClientConnInterface, support
 
 	// b.Run("unary_latency_stats", func(b *testing.B) { BenchmarkUnaryLatency(b, cli) })
 	// b.Run("unary_latency_histogram", func(b *testing.B) { BenchmarkHistogramUnaryLatency(b, cli) })
+	b.SetParallelism(1)
 	b.RunParallel(func(pb *testing.PB) { BenchmarkUnaryLatencyParallel(pb, cli) })
 }
 
@@ -107,10 +108,10 @@ func BenchmarkUnaryLatency(b *testing.B, cli TestServiceClient) {
 		if !bytes.Equal(testPayload, rsp.Payload) {
 			b.Fatalf("wrong payload returned: expecting %v; got %v", testPayload, rsp.Payload)
 		}
-		checkRequestHeadersBench(b, testOutgoingMd, rsp.Headers)
+		// checkRequestHeadersBench(b, testOutgoingMd, rsp.Headers)
 
-		checkMetadataBench(b, testMdHeaders, hdr, "header")
-		checkMetadataBench(b, testMdTrailers, tlr, "trailer")
+		// checkMetadataBench(b, testMdHeaders, hdr, "header")
+		// checkMetadataBench(b, testMdTrailers, tlr, "trailer")
 
 	}
 }

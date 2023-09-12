@@ -78,5 +78,8 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 	fmt.Printf("Mean: %f\n", stats.Mean(runs)*0.001)
 	fmt.Printf("StdDev: %f\n", stats.StdDev(runs)*0.001)
 	fmt.Printf("NumElements: %d\n", len(runs))
+	fmt.Printf("Time in Microsecondes: %d \n", b.Elapsed().Microseconds())
+	fmt.Printf("Time in Seconds: %f \n", b.Elapsed().Seconds())
+	fmt.Printf("Throughput: %f \n", float64(len(runs))/b.Elapsed().Seconds())
 
 }
