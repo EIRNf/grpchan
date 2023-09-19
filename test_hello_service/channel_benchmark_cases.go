@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aclements/go-moremath/stats"
+	"github.com/aclements/go-moremath/vec"
 	"github.com/loov/hrtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -26,15 +27,15 @@ import (
 func RunChannelBenchmarkCases(b *testing.B, ch grpc.ClientConnInterface, supportsFullDuplex bool) {
 	cli := NewTestServiceClient(ch)
 
-	// b.Run("hello", func(b *testing.B) { BenchmarkHelloHistogram(b, cli) })
-	b.Run("hello", func(b *testing.B) { BenchmarkUnaryLatency(b, cli) })
+	b.Run("hello", func(b *testing.B) { BenchmarkHelloHistogram(b, cli) })
+	// b.Run("hello", func(b *testing.B) { BenchmarkUnaryLatency(b, cli) })
 	// b.SetParallelism(1)
 	// b.RunParallel(func(pb *testing.PB) { BenchmarkUnaryLatencyParallel(pb, cli) })
 
 }
 
 func BenchmarkUnaryLatencyParallel(pb *testing.PB, cli TestServiceClient) {
-	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.MD{})
 
 	var name = defaultName
 
@@ -52,7 +53,7 @@ func BenchmarkUnaryLatencyParallel(pb *testing.PB, cli TestServiceClient) {
 }
 
 func BenchmarkUnaryLatency(b *testing.B, cli TestServiceClient) {
-	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.MD{})
 
 	name := defaultName
 	for i := 0; i < b.N; i++ {
@@ -76,7 +77,7 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 
 	bench := hrtime.NewBenchmark(200000)
 
-	ctx := metadata.NewOutgoingContext(context.Background(), MetadataNew(testOutgoingMd))
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.MD{})
 
 	name := flag.String("histo_name", defaultName, "Name to greet")
 
@@ -101,6 +102,7 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 	fmt.Printf("NumElements: %d\n", len(runs))
 	fmt.Printf("Time in Microsecondes: %d \n", b.Elapsed().Microseconds())
 	fmt.Printf("Time in Seconds: %f \n", b.Elapsed().Seconds())
+	fmt.Printf("Sanity Check Time Microseconds: %f \n", vec.Sum(runs)*0.001)
 	fmt.Printf("Throughput: %f \n", float64(len(runs))/b.Elapsed().Seconds())
 
 }
