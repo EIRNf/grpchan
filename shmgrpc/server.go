@@ -116,6 +116,10 @@ func (s *Server) HandleMethods(svr interface{}) {
 	requestQueue := GetQueue(s.ShmQueueInfo.RequestShmaddr)
 	responseQueue := GetQueue(s.ShmQueueInfo.ResponseShmaddr)
 
+	//Set up coordination
+
+	//Begin polling coord struct
+
 	for {
 
 		message, err := consumeMessage(requestQueue)

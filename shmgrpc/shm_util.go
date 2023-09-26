@@ -1,8 +1,13 @@
+//go:build darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
+// +build darwin dragonfly freebsd linux netbsd openbsd solaris
+
 package shmgrpc
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"syscall"
 	"unsafe"
 
 	"google.golang.org/grpc/metadata"
@@ -41,6 +46,16 @@ const (
 
 	SHM_LOCK   Flag = 11 /* lock segment (root only) */
 	SHM_UNLOCK Flag = 12 /* unlock segment (root only) */
+
+	//OPEN
+	O_CREAT  = 0x40
+	O_RDONLY = 0x0
+
+	//LOCK
+	LOCK_SH = 0x1
+	LOCK_EX = 0x2
+	LOCK_NB = 0x4
+	LOCK_UN = 0x8
 )
 
 const (
@@ -84,4 +99,62 @@ func unsafeGetBytes(s string) []byte {
 func ByteSlice2String(bs []byte) string {
 	// fmt.Printf("ByteSlice2String pointer: %p\n", unsafe.Pointer(&bs))
 	return *(*string)(unsafe.Pointer(&bs))
+}
+
+const (
+	//permenant directory flags
+	mkdirPerm = 0750
+)
+
+var AlreadyLocked = errors.New("lock already acquired")
+
+// FileMutex is similar to sync.RWMutex, but also synchronizes across processes.
+// This implementation is based on flock syscall.
+type FileMutex struct {
+	fd int
+}
+
+func New(filename string) (*FileMutex, error) {
+
+	fd, err := syscall.Open(filename, O_CREAT|O_RDONLY, mkdirPerm)
+	if err != nil {
+		return nil, err
+	}
+	return &FileMutex{fd: fd}, nil
+}
+func (m *FileMutex) Lock() error {
+	return syscall.Flock(m.fd, LOCK_EX)
+}
+
+func (m *FileMutex) TryLock() error {
+
+	if err := syscall.Flock(m.fd, LOCK_EX|LOCK_NB); err != nil {
+		if errno, ok := err.(syscall.Errno); ok {
+			if errno == syscall.Errno(0xb) {
+				return AlreadyLocked
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+func (m *FileMutex) Unlock() error {
+	return syscall.Flock(m.fd, LOCK_UN)
+}
+
+func (m *FileMutex) RLock() error {
+	return syscall.Flock(m.fd, LOCK_SH)
+}
+
+func (m *FileMutex) RUnlock() error {
+	return syscall.Flock(m.fd, LOCK_UN)
+}
+
+// Close unlocks the lock and closes the underlying file descriptor.
+func (m *FileMutex) Close() error {
+	if err := syscall.Flock(m.fd, LOCK_UN); err != nil {
+		return err
+	}
+	return syscall.Close(m.fd)
 }
