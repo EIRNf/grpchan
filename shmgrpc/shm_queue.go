@@ -2,8 +2,12 @@ package shmgrpc
 
 import (
 	"errors"
+	"sync"
 	"unsafe"
 )
+
+var produce_lock sync.Mutex
+var consume_lock sync.Mutex
 
 type MessageHeader struct {
 	Size int32
@@ -48,6 +52,7 @@ func StopPollingQueue(queuePtr *Queue) {
 }
 
 func produceMessage(queuePtr *Queue, message Message) {
+	produce_lock.Lock()
 
 	// for isFull(queuePtr) {
 	// 	// Wait for space to become available
@@ -73,10 +78,12 @@ poll:
 	// Enqueue the message into the circular buffer
 	enqueue(queuePtr, &message)
 	// fmt.Printf("Producer: Message enqueued (Size: %s)\n", message.Data)
+	produce_lock.Unlock()
 
 }
 
 func consumeMessage(queuePtr *Queue) (Message, error) {
+	consume_lock.Lock()
 	var message Message
 
 poll:
@@ -99,7 +106,9 @@ poll:
 		}
 		// Wait for a message to become available
 	}
+	consume_lock.Unlock()
 	return message, nil
+
 	// fmt.Printf("Consumer: Received message (Size: %d): %s\n", message.Header.Size, string(message.Data[:message.Header.Size]))
 }
 
