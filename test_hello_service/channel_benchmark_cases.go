@@ -3,7 +3,6 @@ package test_hello_service
 import (
 	"bytes"
 	"context"
-	"flag"
 	"fmt"
 	"testing"
 
@@ -79,11 +78,11 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.MD{})
 
-	name := flag.String("histo_name", defaultName, "Name to greet")
+	// name := flag.String("histo_name", defaultName, "Name to greet")
 
 	// b.Run("success", func(b *testing.B) {
 	for bench.Next() {
-		req := &HelloRequest{Name: *name}
+		req := &HelloRequest{Name: defaultName}
 		rsp, err := cli.SayHello(ctx, req)
 		if err != nil {
 			b.Fatalf("RPC failed: %v", err)
