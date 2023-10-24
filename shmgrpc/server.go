@@ -14,6 +14,8 @@ import (
 	grpcproto "google.golang.org/grpc/encoding/proto"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/rs/zerolog/log"
 )
 
 // type ServeMux struct {
@@ -100,6 +102,10 @@ func NewServer(basePath string, opts ...ServerOption) *Server {
 	//Initiliaze Queue
 	s.requestQeuue = initializeQueue(s.ShmQueueInfo.RequestShmaddr)
 	s.responseQueue = initializeQueue(s.ShmQueueInfo.ResponseShmaddr)
+
+	log.Info().Msgf("New Server: %v \n", s)
+	log.Info().Msgf("New Server RequestShmid: %v \n ", requestShmid)
+	log.Info().Msgf("New Server RespomseShmid: %v \n ", responseShmid)
 
 	return &s
 }

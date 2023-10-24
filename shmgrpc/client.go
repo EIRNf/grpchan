@@ -13,6 +13,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
 	grpcproto "google.golang.org/grpc/encoding/proto"
+
+	"github.com/rs/zerolog/log"
 )
 
 // All required info for a client to communicate with a server
@@ -69,6 +71,12 @@ func NewChannel(url *url.URL, basePath string) *Channel {
 		NumMessages: 0,
 	}
 
+	ch.Lock = sync.Mutex{}
+
+	log.Info().Msgf("New Channel: %v \n ", ch)
+	log.Info().Msgf("New Channel RequestShmid: %v \n ", requestShmid)
+	log.Info().Msgf("New Channel RespomseShmid: %v \n ", responseShmid)
+
 	return ch
 }
 
@@ -78,6 +86,8 @@ func (ch *Channel) incrementNumMessages() {
 }
 
 func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp interface{}, opts ...grpc.CallOption) error {
+
+	// log.Info().Msgf("Client Invoke: %v ", req)
 
 	//Get Call Options for
 	copts := internal.GetCallOptions(opts)

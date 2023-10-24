@@ -2,7 +2,6 @@ package shmgrpc_test
 
 import (
 	"net/url"
-	"sync"
 	"testing"
 
 	"github.com/fullstorydev/grpchan/shmgrpc"
@@ -28,14 +27,17 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	}
 
 	// Construct Channel with necessary parameters to talk to the Server
-	cc := shmgrpc.Channel{
-		BaseURL:      u,
-		ShmQueueInfo: svr.ShmQueueInfo,
-		Lock:         sync.Mutex{},
-	}
+
+	cc := shmgrpc.NewChannel(u, "/hello")
+
+	// cc := shmgrpc.Channel{
+	// 	BaseURL:      u,
+	// 	ShmQueueInfo: svr.ShmQueueInfo,
+	// 	Lock:         sync.Mutex{},
+	// }
 
 	// grpchantesting.RunChannelTestCases(t, &cc, true)
-	test_hello_service.RunChannelBenchmarkCases(b, &cc, false)
+	test_hello_service.RunChannelBenchmarkCases(b, cc, false)
 
 	defer svr.Stop()
 }
