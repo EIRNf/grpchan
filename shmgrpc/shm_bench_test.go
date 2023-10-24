@@ -2,6 +2,7 @@ package shmgrpc_test
 
 import (
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/fullstorydev/grpchan/shmgrpc"
@@ -30,6 +31,7 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	cc := shmgrpc.Channel{
 		BaseURL:      u,
 		ShmQueueInfo: svr.ShmQueueInfo,
+		Lock:         sync.Mutex{},
 	}
 
 	// grpchantesting.RunChannelTestCases(t, &cc, true)

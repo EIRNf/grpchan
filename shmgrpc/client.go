@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"sync"
 
 	"github.com/fullstorydev/grpchan/internal"
 
@@ -23,6 +24,8 @@ type Channel struct {
 	ServiceName string
 	//Connection metadata
 	Metadata MessageMeta
+	//Lock for concurrency
+	Lock sync.Mutex
 }
 
 type MessageMeta struct {
@@ -145,10 +148,14 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	}
 
 	// pass into shared mem queue
+	ch.Lock.Lock()
 	produceMessage(requestQueue, message)
+	ch.Lock.Unlock()
 
 	//Receive Request
+	ch.Lock.Lock()
 	respMessage, err := consumeMessage(responseQueue)
+	ch.Lock.Unlock()
 	if err != nil {
 		//This should hopefully not happen
 		return err
