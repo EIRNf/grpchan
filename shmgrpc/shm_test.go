@@ -12,6 +12,7 @@ func TestGrpcOverSharedMemory(t *testing.T) {
 
 	// svr := &grpchantesting.TestServer{}
 	svc := &test_hello_service.TestServer{}
+
 	svr := shmgrpc.NewServer("/hello")
 
 	//Register Server and instantiate with necessary information

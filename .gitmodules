@@ -1,0 +1,6 @@
+[submodule "notnets_shm"]
+	path = notnets_shm
+	url = https://github.com/EIRNf/notnets_shm.git
+[submodule "shmgrpc/notnets_shm"]
+	path = shmgrpc/notnets_shm
+	url = https://github.com/EIRNf/notnets_shm.git
