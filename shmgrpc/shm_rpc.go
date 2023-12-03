@@ -49,6 +49,7 @@ import (
 // }
 
 type QueuePair struct {
+	ClientId        int
 	RequestShmaddr  uintptr
 	ResponseShmaddr uintptr
 }

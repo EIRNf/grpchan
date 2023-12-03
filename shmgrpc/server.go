@@ -3,6 +3,7 @@ package shmgrpc
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -43,14 +44,19 @@ type Server struct {
 	opts             handlerOpts
 	unaryInterceptor grpc.UnaryServerInterceptor
 
-	quit *grpcsync.Event
-	done *grpcsync.Event
+	quit    *grpcsync.Event
+	done    *grpcsync.Event
+	serveWG sync.WaitGroup
+
+	ErrorLog *log.Logger
+
+	mu sync.Mutex
 
 	// Listener accepting connections on a particular IP  and port
 	lis *Listener
 
 	// Map of queue pairs for boolean of active or inactive connections
-	conns map[*QueuePair]bool
+	conns map[int]*QueuePair
 
 	ShmQueueInfo  *QueueInfo
 	responseQueue *Queue
@@ -74,6 +80,8 @@ func Listen(addr string) *Listener {
 }
 
 func (l *Listener) Accept() (*QueuePair, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	queue := l.notnets_context.Accept()
 	var err error
 	return queue, err
@@ -122,9 +130,11 @@ func NewServer(basePath string, opts ...ServerOption) *Server {
 	var s Server
 	s.basePath = basePath
 	s.handlers = grpchan.HandlerMap{}
-	s.opts = opts
+	for _, o := range opts {
+		o.apply(&s)
+	}
 
-	s.conns = make(map[*QueuePair]bool)
+	s.conns = make(map[int]*QueuePair)
 
 	return &s
 }
@@ -135,26 +145,75 @@ func NewServer(basePath string, opts ...ServerOption) *Server {
 // handles for then.
 func (s *Server) Serve(lis *Listener) error {
 	//Handle listener setup
+	s.mu.Lock()
+	s.logf("serving")
+
+	//TODO CASE HANDLING
+
 	s.lis = lis
 
+	s.mu.Unlock()
 	//Begin Listen//accept loop
-
 	//Sleep interval for null connect or previous connect
-	var tempDelay time.Duration
+	var tempDelay time.Duration = 2
 	for {
 		newQueuePair, err := lis.Accept()
 
 		if err != nil {
 			//panic
+			s.logf("Accept error: %v", err)
+			return err
 		}
 		// Check null or against map to backoff
 		if newQueuePair == nil {
-
+			s.logf("null queue_pair: %v", newQueuePair)
+			time.Sleep(tempDelay)
 		}
-		if queuePair, ok := s.conns[*newQueuePair]; ok { //Queue pair already exists
-
+		if _, ok := s.conns[newQueuePair.ClientId]; ok { //Queue pair already exists
+			s.logf("already served queue_pair: %v", newQueuePair)
+			// We are already servicing this queue
+			time.Sleep(tempDelay)
 		}
+
+		//Start a new goroutine to deal with the new queuepair
+		s.serveWG.Add(1)
+		go func() {
+			s.handleNewQueuePair(newQueuePair)
+			s.serveWG.Done()
+		}()
 	}
+
+}
+
+// Fork a goroutine to handle just-accepted connection
+func (s *Server) handleNewQueuePair(queuePair *QueuePair) {
+
+	//Check for quit
+
+	//Conn wrapper?
+
+	//Deadline of inactivity?
+
+	//Add to map
+	s.conns[queuePair.ClientId] = queuePair
+
+	//Launch dedicated thread to handle
+	go func() {
+		s.serveRequests()
+		// If return from this method, connection has been closed
+		// Remove and start servicing, close connection
+	}()
+}
+
+func serveRequests() {
+
+	// Call handle method as we read of queue appropriately.
+}
+
+func HandleMethod() {
+
+}
+func handleMethod() {
 
 }
 
@@ -385,9 +444,10 @@ func makeServerContext(ctx context.Context) context.Context {
 	return newCtx
 }
 
-// func handleMethod(svr interface{}, serviceName string, desc *grpc.MethodDesc) func() {
-
-// 	fullMethod := fmt.Sprintf("/%s/%s", serviceName, desc.MethodName)
-// 	fmt.Println(fullMethod)
-// 	return f()
-// }
+func (s *Server) logf(format string, args ...any) {
+	if s.ErrorLog != nil {
+		s.ErrorLog.Printf(format, args...)
+	} else {
+		log.Printf(format, args...)
+	}
+}
