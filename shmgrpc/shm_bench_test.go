@@ -1,7 +1,6 @@
 package shmgrpc_test
 
 import (
-	"net/url"
 	"testing"
 
 	"github.com/fullstorydev/grpchan/shmgrpc"
@@ -17,24 +16,13 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	//Register Server and instantiate with necessary information
 	test_hello_service.RegisterTestServiceServer(svr, svc)
 
-	//Begin handling methods from shm queue
-	go svr.HandleMethods(svc)
+	//Create Listener
+	lis := shmgrpc.Listen("http://127.0.0.1:8080/hello")
 
-	//Placeholder URL????
-	u, err := url.Parse("http://127.0.0.1:8080")
-	if err != nil {
-		b.Fatalf("failed to parse base URL: %v", err)
-	}
+	go svr.Serve(lis)
+	defer svr.Stop()
 
-	// Construct Channel with necessary parameters to talk to the Server
-
-	cc := shmgrpc.NewChannel(u, "/hello")
-
-	// cc := shmgrpc.Channel{
-	// 	BaseURL:      u,
-	// 	ShmQueueInfo: svr.ShmQueueInfo,
-	// 	Lock:         sync.Mutex{},
-	// }
+	cc := shmgrpc.NewChannel("localhost", "http://127.0.0.1:8080/hello")
 
 	// grpchantesting.RunChannelTestCases(t, &cc, true)
 	test_hello_service.RunChannelBenchmarkCases(b, cc, false)

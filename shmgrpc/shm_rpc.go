@@ -50,8 +50,8 @@ import (
 
 type QueuePair struct {
 	ClientId        int
-	RequestShmaddr  uintptr
-	ResponseShmaddr uintptr
+	RequestShmaddr  unsafe.Pointer
+	ResponseShmaddr unsafe.Pointer
 }
 
 // server_context
@@ -74,19 +74,22 @@ func ClientOpen(sourceAddr string, destinationAddr string, messageSize int32) (r
 }
 
 // client_send_rpc
-func (conn *QueuePair) ClientSendRpc(buf uintptr, size int) (ret int32) {
+func (conn *QueuePair) ClientSendRpc(buf []byte, size int) (ret int32) {
 	_conn := (*C.queue_pair)(unsafe.Pointer(conn))
-	_buf := unsafe.Pointer(buf)
+	// cbuf := C.CBytes(buf)
+	_buf := unsafe.Pointer(&buf[0])
 	_size := C.size_t(size)
 	_ret := C.client_send_rpc(_conn, _buf, _size)
+	// buf = C.GoBytes(cbuf, C.int(_size))
+	// defer C.free(cbuf)
 	ret = int32(_ret)
 	return
 }
 
 // client_receive_buf
-func (conn *QueuePair) ClientReceiveBuf(buf uintptr, size int) (ret int) {
+func (conn *QueuePair) ClientReceiveBuf(buf []byte, size int) (ret int) {
 	_conn := (*C.queue_pair)(unsafe.Pointer(conn))
-	_buf := unsafe.Pointer(buf)
+	_buf := unsafe.Pointer(&buf[0])
 	_size := C.size_t(size)
 	_ret := C.client_receive_buf(_conn, _buf, _size)
 	ret = int(_ret)
@@ -134,19 +137,22 @@ func (handler *ServerContext) Shutdown() {
 }
 
 // server_receive_buf
-func (client *QueuePair) ServerReceiveBuf(buf uintptr, size int) (ret int) {
+func (client *QueuePair) ServerReceiveBuf(buf []byte, size int) (ret int) {
 	_client := (*C.queue_pair)(unsafe.Pointer(client))
-	_buf := unsafe.Pointer(buf)
+	// cbuf := C.CBytes(buf)
+	_buf := unsafe.Pointer(&buf[0])
 	_size := C.size_t(size)
 	_ret := C.server_receive_buf(_client, _buf, _size)
+	// buf = C.GoBytes(cbuf, C.int(_size))
+	// defer C.free(cbuf)
 	ret = int(_ret)
 	return
 }
 
 // server_send_rpc
-func (client *QueuePair) ServerSendRpc(buf uintptr, size int) (ret int32) {
+func (client *QueuePair) ServerSendRpc(buf []byte, size int) (ret int32) {
 	_client := (*C.queue_pair)(unsafe.Pointer(client))
-	_buf := unsafe.Pointer(buf)
+	_buf := unsafe.Pointer(&buf[0])
 	_size := C.size_t(size)
 	_ret := C.server_send_rpc(_client, _buf, _size)
 	ret = int32(_ret)

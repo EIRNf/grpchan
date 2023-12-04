@@ -12,13 +12,12 @@ func main() {
 	svr := shmgrpc.NewServer("/hello")
 
 	//Register Server and instantiate with necessary information
-	//Server can create queue
-	//Server Can have
-	go test_hello_service.RegisterTestServiceServer(svr, svc)
+	test_hello_service.RegisterTestServiceServer(svr, svc)
 
-	//Begin handling methods from shm queue
-	svr.HandleMethods(svc)
+	//Create Listener
+	lis := shmgrpc.Listen("http://127.0.0.1:8080/hello")
 
+	svr.Serve(lis)
 	defer svr.Stop()
 
 }

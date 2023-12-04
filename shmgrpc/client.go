@@ -1,9 +1,11 @@
 package shmgrpc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"path"
 	"sync"
@@ -21,9 +23,11 @@ import (
 type Channel struct {
 	ShmQueueInfo *QueueInfo
 	//URL of endpoint (might be useful in the future)
-	BaseURL *url.URL
+	targetAddress *url.URL
+	sourceAddress string
 	//shm state info etc that might be needed
-	ServiceName string
+
+	queuePair *QueuePair
 	//Connection metadata
 	Metadata MessageMeta
 	//Lock for concurrency
@@ -36,36 +40,16 @@ type MessageMeta struct {
 
 var _ grpc.ClientConnInterface = (*Channel)(nil)
 
-var (
-	cserReqData     [600]byte
-	cserReqLen      int
-	cserReqWritten  bool = false
-	cserRespStruct  ShmMessage
-	cserRespWritten bool = false
-
-	cserPayload        []byte
-	cserPayloadWritten bool = false
-)
-
-func NewChannel(url *url.URL, basePath string) *Channel {
+func NewChannel(sourceAddress string, targetAddress string) *Channel {
 	ch := new(Channel)
-	ch.BaseURL = url
+	ch.sourceAddress = targetAddress
+	ch.targetAddress, _ = url.Parse(targetAddress)
 
-	//Initilize ShmQueueInfo
-	requestKey, responseKey := GatherShmKeys(basePath)
+	ch.queuePair = ClientOpen(sourceAddress, targetAddress, 512)
 
-	//Client -> Server Shm
-	requestShmid, requestShmaddr := InitializeShmRegion(requestKey, Size, uintptr(ClientSegFlag))
-	//Server -> Client Shm
-	responseShmid, responseShmaddr := InitializeShmRegion(responseKey, Size, uintptr(ClientSegFlag))
-
-	qi := QueueInfo{
-		RequestShmid:    requestShmid,
-		RequestShmaddr:  requestShmaddr,
-		ResponseShmid:   responseShmid,
-		ResponseShmaddr: responseShmaddr,
+	if ch.queuePair == nil {
+		log.Info().Msgf("error establishing notnets conn: %v \n ", ch)
 	}
-	ch.ShmQueueInfo = &qi
 
 	ch.Metadata = MessageMeta{
 		NumMessages: 0,
@@ -74,8 +58,8 @@ func NewChannel(url *url.URL, basePath string) *Channel {
 	ch.Lock = sync.Mutex{}
 
 	log.Info().Msgf("New Channel: %v \n ", ch)
-	log.Info().Msgf("New Channel RequestShmid: %v \n ", requestShmid)
-	log.Info().Msgf("New Channel RespomseShmid: %v \n ", responseShmid)
+	log.Info().Msgf("New Channel RequestShmid: %v \n ", ch.queuePair.RequestShmaddr)
+	log.Info().Msgf("New Channel RespomseShmid: %v \n ", ch.queuePair.ResponseShmaddr)
 
 	return ch
 }
@@ -93,7 +77,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	copts := internal.GetCallOptions(opts)
 
 	//Get headersFromContext
-	reqUrl := *ch.BaseURL
+	reqUrl := ch.targetAddress
 	reqUrl.Path = path.Join(reqUrl.Path, methodName)
 	reqUrlStr := reqUrl.String()
 
@@ -104,22 +88,16 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 
 	codec := encoding.GetCodec(grpcproto.Name)
 
-	if !cserPayloadWritten {
-		serializedPayload, err := codec.Marshal(req)
-		if err != nil {
-			return err
-		}
-		cserPayload = serializedPayload
-		cserPayloadWritten = true
+	serializedPayload, err := codec.Marshal(req)
+	if err != nil {
+		return err
 	}
-
-	// var reqPtr = unsafe
 
 	messageRequest := &ShmMessage{
 		Method:  methodName,
 		Context: ctx,
 		Headers: headersFromContext(ctx),
-		Payload: ByteSlice2String(cserPayload),
+		Payload: ByteSlice2String(serializedPayload),
 	}
 
 	// Create a fixed-length byte array
@@ -132,61 +110,40 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 
 	// we have the meta request
 	// Marshall to build rest of system
+
 	var serializedMessage []byte
-	var data [600]byte
-	if !cserReqWritten {
-		serializedMessage, err = json.Marshal(messageRequest)
-		cserReqLen = copy(cserReqData[:], serializedMessage)
-		data = cserReqData
-		cserReqWritten = true
-		if err != nil {
-			return err
-		}
-	} else {
-		data = cserReqData
-	}
+	serializedMessage, err = json.Marshal(messageRequest)
 
-	//START MESSAGING
-	requestQueue := GetQueue(ch.ShmQueueInfo.RequestShmaddr)
-	responseQueue := GetQueue(ch.ShmQueueInfo.ResponseShmaddr)
-
-	message := Message{
-		Header: MessageHeader{
-			Size: int32(cserReqLen),
-			Tag:  ch.Metadata.NumMessages},
-		Data: data,
-	}
-
-	// pass into shared mem queue
-	ch.Lock.Lock()
-	produceMessage(requestQueue, message)
-	ch.Lock.Unlock()
-
-	//Receive Request
-	ch.Lock.Lock()
-	respMessage, err := consumeMessage(responseQueue)
-	ch.Lock.Unlock()
 	if err != nil {
-		//This should hopefully not happen
 		return err
 	}
 
-	if respMessage.Header.Tag != ch.Metadata.NumMessages {
-		panic("Mismatched tag")
-	}
+	//START MESSAGING
+	// pass into shared mem queue
+	// ch.Lock.Lock()
+	ch.queuePair.ClientSendRpc(serializedMessage, len(serializedMessage))
+	// ch.Lock.Unlock()
 
-	//Parse bytes into object
-	slice := respMessage.Data[0:respMessage.Header.Size]
-	var message_resp_meta ShmMessage
-	if !cserRespWritten {
-		json.Unmarshal(slice, &message_resp_meta)
-		cserRespStruct = message_resp_meta
-		cserRespWritten = true
-		if err != nil {
-			return err
+	//Receive Request
+	// ch.Lock.Lock()
+	b := bytes.NewBuffer(nil)
+	buf := make([]byte, 512)
+	//iterate and append to dynamically allocated data until all data is read
+	var size int
+	for {
+		size = ch.queuePair.ClientReceiveBuf(buf, len(buf))
+		b.Write(buf)
+		if size == 0 { //Have full payload
+			break
 		}
-	} else {
-		message_resp_meta = cserRespStruct
+	} // ch.Lock.Unlock()
+
+	var message_resp_meta ShmMessage
+	// json.Unmarshal(b.Bytes(), &message_resp_meta)
+	json.NewDecoder(&io.LimitedReader{N: 512, R: b}).Decode(&message_resp_meta)
+
+	if err != nil {
+		return err
 	}
 
 	payload := unsafeGetBytes(message_resp_meta.Payload)
@@ -205,12 +162,6 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 
 	//Update total number of back and forth messages
 	ch.incrementNumMessages()
-
-	if !NO_SERIALIZATION {
-		cserReqWritten = false
-		cserRespWritten = false
-		cserPayloadWritten = false
-	}
 
 	// fmt.Printf("finished message num %d:", ch.Metadata.NumMessages)
 
