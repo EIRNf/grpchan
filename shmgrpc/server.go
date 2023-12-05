@@ -181,6 +181,7 @@ func (s *Server) Serve(lis *Listener) error {
 	//Begin Listen//accept loop
 	//Sleep interval for null connect or previous connect
 	var tempDelay time.Duration = 4
+	// time.Sleep(2 * time.Second)
 	for {
 		newQueuePair, err := lis.Accept()
 
@@ -195,19 +196,25 @@ func (s *Server) Serve(lis *Listener) error {
 			time.Sleep(tempDelay * time.Second)
 			continue
 		}
-		if _, ok := s.conns[newQueuePair.ClientId]; ok { //Queue pair already exists
+		s.mu.Lock()
+		_, ok := s.conns[newQueuePair.ClientId]
+		s.mu.Unlock()
+		if ok { //Queue pair already exists
 			log.Info().Msgf("already served queue_pair: %v", newQueuePair)
 			// We are already servicing this queue
 			time.Sleep(tempDelay * time.Second)
 			continue
+		} else {
+			s.mu.Lock()
+			s.conns[newQueuePair.ClientId] = newQueuePair
+			s.mu.Unlock()
+			//Start a new goroutine to deal with the new queuepair
+			s.serveWG.Add(1)
+			go func() {
+				s.handleNewQueuePair(newQueuePair)
+				s.serveWG.Done()
+			}()
 		}
-
-		//Start a new goroutine to deal with the new queuepair
-		s.serveWG.Add(1)
-		go func() {
-			s.handleNewQueuePair(newQueuePair)
-			s.serveWG.Done()
-		}()
 	}
 
 }
@@ -222,11 +229,11 @@ func (s *Server) handleNewQueuePair(queuePair *QueuePair) {
 	//Deadline of inactivity?
 
 	//Add to map
-	s.mu.Lock()
-	s.conns[queuePair.ClientId] = queuePair
-	s.mu.Unlock()
+	// s.mu.Lock()
+	// s.conns[queuePair.ClientId] = queuePair
+	// s.mu.Unlock()
 
-	log.Info().Msgf("New client connection: %v", queuePair.ClientId)
+	log.Info().Msgf("New client connection: %v", queuePair)
 
 	//Launch dedicated thread to handle
 	go func() {
@@ -248,6 +255,8 @@ func (s *Server) serveRequests(queuePair *QueuePair) {
 	var size int
 	for {
 		size = queuePair.ServerReceiveBuf(buf, len(buf))
+		log.Info().Msgf("Server: Reads: %v", buf)
+
 		b.Write(buf)
 		if size == 0 { //Have full payload
 			go func() {
@@ -260,6 +269,8 @@ func (s *Server) serveRequests(queuePair *QueuePair) {
 
 func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 	// req := b.Bytes()
+
+	log.Info().Msgf("Server: Message Received: %v \n ", b.String())
 
 	// Need a method to unmarshall general struct of
 	// request, JSON for now
@@ -348,6 +359,8 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 	if err != nil {
 		status.Errorf(codes.Unknown, "Codec Marshalling error: %s ", err.Error())
 	}
+
+	log.Info().Msgf("Server: Message Sent: %v \n ", serializedMessage)
 
 	//Begin write back
 	queuePair.ServerSendRpc(serializedMessage, len(serializedMessage))

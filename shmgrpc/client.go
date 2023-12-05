@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/fullstorydev/grpchan/internal"
 
@@ -45,6 +46,7 @@ func NewChannel(sourceAddress string, targetAddress string) *Channel {
 	ch.sourceAddress = targetAddress
 	ch.targetAddress, _ = url.Parse(targetAddress)
 
+	time.Sleep(2 * time.Second)
 	ch.queuePair = ClientOpen(sourceAddress, targetAddress, 512)
 
 	if ch.queuePair == nil {
@@ -57,9 +59,9 @@ func NewChannel(sourceAddress string, targetAddress string) *Channel {
 
 	ch.Lock = sync.Mutex{}
 
-	log.Info().Msgf("New Channel: %v \n ", ch)
-	log.Info().Msgf("New Channel RequestShmid: %v \n ", ch.queuePair.RequestShmaddr)
-	log.Info().Msgf("New Channel RespomseShmid: %v \n ", ch.queuePair.ResponseShmaddr)
+	log.Info().Msgf("Client: New Channel: %v \n ", ch.queuePair.ClientId)
+	log.Info().Msgf("Client: New Channel RequestShmid: %v \n ", ch.queuePair.RequestShmaddr)
+	log.Info().Msgf("Client: New Channel RespomseShmid: %v \n ", ch.queuePair.ResponseShmaddr)
 
 	return ch
 }
@@ -121,6 +123,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	//START MESSAGING
 	// pass into shared mem queue
 	// ch.Lock.Lock()
+	log.Info().Msgf("Client: Message Sent: %v \n ", serializedMessage)
 	ch.queuePair.ClientSendRpc(serializedMessage, len(serializedMessage))
 	// ch.Lock.Unlock()
 
@@ -132,11 +135,15 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	var size int
 	for {
 		size = ch.queuePair.ClientReceiveBuf(buf, len(buf))
+		log.Info().Msgf("Client: Reads: %v", buf)
+
 		b.Write(buf)
 		if size == 0 { //Have full payload
 			break
 		}
 	} // ch.Lock.Unlock()
+
+	log.Info().Msgf("Client: Message Received: %v \n ", b.String())
 
 	var message_resp_meta ShmMessage
 	// json.Unmarshal(b.Bytes(), &message_resp_meta)

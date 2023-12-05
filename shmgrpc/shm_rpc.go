@@ -9,6 +9,7 @@ import "C"
 import (
 	"unsafe"
 
+	"github.com/rs/zerolog/log"
 	"modernc.org/libc/pthread"
 )
 
@@ -69,7 +70,10 @@ func ClientOpen(sourceAddr string, destinationAddr string, messageSize int32) (r
 	defer C.free(unsafe.Pointer(_destinationAddr))
 	_messageSize := C.int(messageSize)
 	_ret := C.client_open(_sourceAddr, _destinationAddr, _messageSize)
+	log.Info().Msgf("Client: open response : %v \n ", _ret)
 	ret = (*QueuePair)(unsafe.Pointer(_ret))
+	log.Info().Msgf("Client: open response ret : %v \n ", ret)
+
 	return
 }
 
@@ -120,8 +124,18 @@ func RegisterServer(sourceAddr string) (ret *ServerContext) {
 func (handler *ServerContext) Accept() (ret *QueuePair) {
 	_handler := (*C.server_context)(unsafe.Pointer(handler))
 	_ret := C.accept(_handler)
+	// clientid := C.GoBytes(unsafe.Pointer(&_ret.client_id), C.sizeof_int)
+	// request_shmaddr := C.GoBytes(unsafe.Pointer(&_ret.request_shmaddr), C.sizeof_char)
+	// response_shmaddr := C.GoBytes(unsafe.Pointer(&_ret.response_shmaddr), C.sizeof_char)
+
+	// ret = &QueuePair{
+	// 	ClientId:        int(_ret.client_id),
+	// 	RequestShmaddr:  _ret.request_shmaddr,
+	// 	ResponseShmaddr: _ret.response_shmaddr,
+	// }
+	// C.free((unsafe.Pointer(_ret)))
 	ret = (*QueuePair)(unsafe.Pointer(_ret))
-	return
+	return ret
 }
 
 // manage_pool
