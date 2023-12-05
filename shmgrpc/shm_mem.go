@@ -6,6 +6,8 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -47,16 +49,24 @@ func GatherShmKeys(fullServiceName string) (uintptr, uintptr) {
 
 func InitializeShmRegion(key, size, segFlag uintptr) (uintptr, uintptr) {
 
+	log.Info().Msgf("New ShmRegion Key: %+v \n", key)
+	log.Info().Msgf("New ShmRegion Size: %+v \n", size)
+	log.Info().Msgf("New ShmRegion segFlag: %+v \n", segFlag)
+
 	// Create a new shared memory segment
 	shmid, _, errno := syscall.RawSyscall(syscall.SYS_SHMGET, key, size, segFlag)
 	if errno != 0 {
 		os.NewSyscallError("SYS_SHMGET", errno)
 	}
+	log.Info().Msgf("New ShmRegion shmid : %+v \n", shmid)
+	log.Info().Msgf("New ShmRegion errno : %+v \n", errno)
 
 	shmaddr, _, errno := syscall.RawSyscall(syscall.SYS_SHMAT, shmid, uintptr(0), segFlag)
 	if errno != 0 {
 		os.NewSyscallError("SYS_SHMAT", errno)
 	}
+	log.Info().Msgf("New ShmRegion shmaddr : %+v \n", shmaddr)
+	log.Info().Msgf("New ShmRegion errno : %+v \n", errno)
 
 	return shmid, shmaddr
 }

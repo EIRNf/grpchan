@@ -3,6 +3,8 @@ package shmgrpc
 import (
 	"errors"
 	"unsafe"
+
+	"github.com/rs/zerolog/log"
 )
 
 // var produce_lock sync.Mutex
@@ -32,6 +34,8 @@ type Queue struct {
 
 func initializeQueue(shmaddr uintptr) *Queue {
 	// Initialize the circular buffer structure
+	log.Info().Msgf("Queue Shmaddr: %+v \n ", shmaddr)
+
 	queue := Queue{
 		Head:        0,
 		Tail:        0,
@@ -118,6 +122,8 @@ func GetQueue(shmaddr uintptr) *Queue {
 }
 
 func isFull(queue *Queue) bool {
+	// log.Info().Msgf("isFull QueueState: %+v \n ", queue)
+
 	// queue.mu.Lock()
 	isFull := (queue.Tail+1)%queue.BufferSize == queue.Head
 	// queue.mu.Unlock()
@@ -125,6 +131,8 @@ func isFull(queue *Queue) bool {
 }
 
 func isEmpty(queue *Queue) bool {
+	// log.Info().Msgf("isEmpty QueueState: %+v \n ", queue)
+
 	// queue.mu.Lock()
 	isEmpty := queue.Head == queue.Tail
 	// queue.mu.Unlock()

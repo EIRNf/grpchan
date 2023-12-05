@@ -71,11 +71,17 @@ func NewChannel(url *url.URL, basePath string) *Channel {
 		NumMessages: 0,
 	}
 
+	//Initiliaze Queue
+	// initializeQueue(qi.RequestShmaddr)
+	// initializeQueue(qi.ResponseShmaddr)
+
 	ch.Lock = sync.Mutex{}
 
-	log.Info().Msgf("New Channel: %v \n ", ch)
-	log.Info().Msgf("New Channel RequestShmid: %v \n ", requestShmid)
-	log.Info().Msgf("New Channel RespomseShmid: %v \n ", responseShmid)
+	log.Info().Msgf("New Channel: %+v \n ", ch)
+	log.Info().Msgf("New Channel RequestShmid: %+v \n ", requestShmid)
+	log.Info().Msgf("New Channel ResponseShmid: %+v \n ", responseShmid)
+	log.Info().Msgf("New Channel RequestShmaddr: %+v \n ", requestShmaddr)
+	log.Info().Msgf("New Channel ResponseShmaddr: %+v \n ", responseShmaddr)
 
 	return ch
 }
@@ -148,7 +154,15 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 
 	//START MESSAGING
 	requestQueue := GetQueue(ch.ShmQueueInfo.RequestShmaddr)
+	// log.Info().Msgf("Invoke RequestQueue: %+v \n ", requestQueue)
+
 	responseQueue := GetQueue(ch.ShmQueueInfo.ResponseShmaddr)
+	// log.Info().Msgf("Invoke ResponseQueue: %+v \n ", requestQueue)
+
+	// log.Info().Msgf("Invoke message: %+v \n ", message)
+
+	// pass into shared mem queue
+	ch.Lock.Lock()
 
 	message := Message{
 		Header: MessageHeader{
@@ -157,13 +171,11 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		Data: data,
 	}
 
-	// pass into shared mem queue
-	ch.Lock.Lock()
 	produceMessage(requestQueue, message)
-	ch.Lock.Unlock()
+	// ch.Lock.Unlock()
 
 	//Receive Request
-	ch.Lock.Lock()
+	// ch.Lock.Lock()
 	respMessage, err := consumeMessage(responseQueue)
 	ch.Lock.Unlock()
 	if err != nil {
@@ -171,9 +183,12 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		return err
 	}
 
-	if respMessage.Header.Tag != ch.Metadata.NumMessages {
-		panic("Mismatched tag")
-	}
+	// log.Info().Msgf("Invoke respMessage: %+v \n ", respMessage)
+
+	//TODO
+	// if respMessage.Header.Tag != ch.Metadata.NumMessages {
+	// 	panic("Mismatched tag")
+	// }
 
 	//Parse bytes into object
 	slice := respMessage.Data[0:respMessage.Header.Size]
@@ -188,6 +203,8 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	} else {
 		message_resp_meta = cserRespStruct
 	}
+
+	// log.Info().Msgf("Invoke message_resp_meta: %+v \n ", message_resp_meta)
 
 	payload := unsafeGetBytes(message_resp_meta.Payload)
 

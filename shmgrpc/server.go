@@ -86,9 +86,9 @@ func NewServer(basePath string, opts ...ServerOption) *Server {
 
 	//Initilize ShmQueueInfo
 	//Client -> Server Shm
-	requestShmid, requestShmaddr := InitializeShmRegion(requestKey, Size, uintptr(ServerSegFlag))
+	requestShmid, requestShmaddr := InitializeShmRegion(requestKey, Size, uintptr(ClientSegFlag))
 	//Server -> Client Shm
-	responseShmid, responseShmaddr := InitializeShmRegion(responseKey, Size, uintptr(ServerSegFlag))
+	responseShmid, responseShmaddr := InitializeShmRegion(responseKey, Size, uintptr(ClientSegFlag))
 
 	qi := QueueInfo{
 		RequestShmid:    requestShmid,
@@ -99,13 +99,15 @@ func NewServer(basePath string, opts ...ServerOption) *Server {
 
 	s.ShmQueueInfo = &qi
 
+	log.Info().Msgf("New Server: %+v \n", s)
+	log.Info().Msgf("New Server RequestShmid: %+v \n ", requestShmid)
+	log.Info().Msgf("New Server RespomseShmid: %+v \n ", responseShmid)
+	log.Info().Msgf("New Server RequestShmaddr: %+v \n ", requestShmaddr)
+	log.Info().Msgf("New Server ResponseShmaddr: %+v \n ", responseShmaddr)
+
 	//Initiliaze Queue
 	s.requestQeuue = initializeQueue(s.ShmQueueInfo.RequestShmaddr)
 	s.responseQueue = initializeQueue(s.ShmQueueInfo.ResponseShmaddr)
-
-	log.Info().Msgf("New Server: %v \n", s)
-	log.Info().Msgf("New Server RequestShmid: %v \n ", requestShmid)
-	log.Info().Msgf("New Server RespomseShmid: %v \n ", responseShmid)
 
 	return &s
 }
@@ -125,6 +127,7 @@ func (s *Server) HandleMethods(svr interface{}) {
 	for {
 
 		message, err := consumeMessage(requestQueue)
+
 		if err != nil {
 			break
 			//the channel has been shut down
@@ -145,9 +148,12 @@ func (s *Server) HandleMethods(svr interface{}) {
 			message_req_meta = sSerReqStruct
 		}
 
+		// log.Info().Msgf("Handle message_req_meta: %+v \n ", message_req_meta)
+
 		//Parse bytes into object
 
 		payload_buffer := unsafeGetBytes(message_req_meta.Payload)
+		// log.Info().Msgf("Handle payload_buffer: %+v \n ", payload_buffer)
 
 		fullName := message_req_meta.Method
 		strs := strings.SplitN(fullName[1:], "/", 2)
@@ -243,6 +249,7 @@ func (s *Server) HandleMethods(svr interface{}) {
 		} else {
 			data = sSerRespData
 		}
+		// log.Info().Msgf("Handle sSerRespData: %+v \n ", sSerRespData)
 
 		message_response := Message{
 			Header: MessageHeader{
@@ -250,6 +257,8 @@ func (s *Server) HandleMethods(svr interface{}) {
 				Tag:  messageTag},
 			Data: data,
 		}
+
+		// log.Info().Msgf("Handle message_response: %+v \n ", message_response)
 
 		produceMessage(responseQueue, message_response)
 
