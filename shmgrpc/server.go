@@ -182,8 +182,14 @@ func (s *Server) Serve(lis *Listener) error {
 	//Sleep interval for null connect or previous connect
 	var tempDelay time.Duration = 4
 	// time.Sleep(2 * time.Second)
+
+	start := time.Now()
 	for {
 		newQueuePair, err := lis.Accept()
+
+		if time.Since(start) > time.Second*300 {
+			break
+		}
 
 		if err != nil {
 			//panic
@@ -216,6 +222,7 @@ func (s *Server) Serve(lis *Listener) error {
 			}()
 		}
 	}
+	return nil
 
 }
 
@@ -255,7 +262,7 @@ func (s *Server) serveRequests(queuePair *QueuePair) {
 	var size int
 	for {
 		size = queuePair.ServerReceiveBuf(buf, len(buf))
-		log.Info().Msgf("Server: Reads: %v", buf)
+		// log.Info().Msgf("Server: Reads: %v", buf)
 
 		b.Write(buf)
 		if size == 0 { //Have full payload
@@ -270,7 +277,7 @@ func (s *Server) serveRequests(queuePair *QueuePair) {
 func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 	// req := b.Bytes()
 
-	log.Info().Msgf("Server: Message Received: %v \n ", b.String())
+	// log.Info().Msgf("Server: Message Received: %v \n ", b.String())
 
 	// Need a method to unmarshall general struct of
 	// request, JSON for now
@@ -360,7 +367,7 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 		status.Errorf(codes.Unknown, "Codec Marshalling error: %s ", err.Error())
 	}
 
-	log.Info().Msgf("Server: Message Sent: %v \n ", serializedMessage)
+	// log.Info().Msgf("Server: Message Sent: %v \n ", serializedMessage)
 
 	//Begin write back
 	queuePair.ServerSendRpc(serializedMessage, len(serializedMessage))

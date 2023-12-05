@@ -1,6 +1,6 @@
 package shmgrpc
 
-// #cgo CFLAGS: -g -Wall -pthread
+// #cgo CFLAGS: -O2 -Wall -pthread
 // #include <stdlib.h>
 // #include <stdio.h>
 // #include <errno.h>

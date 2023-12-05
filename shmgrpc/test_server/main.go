@@ -1,11 +1,18 @@
 package main
 
 import (
+	"os"
+	"runtime/pprof"
+
 	"github.com/fullstorydev/grpchan/shmgrpc"
 	"github.com/fullstorydev/grpchan/test_hello_service"
 )
 
 func main() {
+
+	f, _ := os.Create("bench.prof")
+
+	pprof.StartCPUProfile(f)
 
 	// svr := &grpchantesting.TestServer{}
 	svc := &test_hello_service.TestServer{}
@@ -18,6 +25,7 @@ func main() {
 	lis := shmgrpc.Listen("http://127.0.0.1:8080/hello")
 
 	svr.Serve(lis)
+	defer pprof.StopCPUProfile()
 	defer svr.Stop()
 
 }

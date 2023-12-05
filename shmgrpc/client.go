@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/fullstorydev/grpchan/internal"
 
@@ -46,7 +45,7 @@ func NewChannel(sourceAddress string, targetAddress string) *Channel {
 	ch.sourceAddress = targetAddress
 	ch.targetAddress, _ = url.Parse(targetAddress)
 
-	time.Sleep(2 * time.Second)
+	log.Info().Msgf("Client: Opening New Channel \n")
 	ch.queuePair = ClientOpen(sourceAddress, targetAddress, 512)
 
 	if ch.queuePair == nil {
@@ -123,7 +122,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	//START MESSAGING
 	// pass into shared mem queue
 	// ch.Lock.Lock()
-	log.Info().Msgf("Client: Message Sent: %v \n ", serializedMessage)
+	// log.Info().Msgf("Client: Message Sent: %v \n ", serializedMessage)
 	ch.queuePair.ClientSendRpc(serializedMessage, len(serializedMessage))
 	// ch.Lock.Unlock()
 
@@ -135,7 +134,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	var size int
 	for {
 		size = ch.queuePair.ClientReceiveBuf(buf, len(buf))
-		log.Info().Msgf("Client: Reads: %v", buf)
+		// log.Info().Msgf("Client: Reads: %v", buf)
 
 		b.Write(buf)
 		if size == 0 { //Have full payload
@@ -143,7 +142,7 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		}
 	} // ch.Lock.Unlock()
 
-	log.Info().Msgf("Client: Message Received: %v \n ", b.String())
+	// log.Info().Msgf("Client: Message Received: %v \n ", b.String())
 
 	var message_resp_meta ShmMessage
 	// json.Unmarshal(b.Bytes(), &message_resp_meta)
