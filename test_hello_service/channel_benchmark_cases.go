@@ -92,7 +92,7 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 		}
 	}
 
-	fmt.Println(bench.Histogram(10))
+	fmt.Println(bench.Histogram(15))
 
 	runs := bench.Float64s()
 
@@ -103,5 +103,8 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 	fmt.Printf("Time in Seconds: %f \n", b.Elapsed().Seconds())
 	fmt.Printf("Sanity Check Time Microseconds: %f \n", vec.Sum(runs)*0.001)
 	fmt.Printf("Throughput: %f \n", float64(len(runs))/b.Elapsed().Seconds())
+
+	bench.Laps()
+	fmt.Printf("Runs: %v :", bench.Laps())
 
 }

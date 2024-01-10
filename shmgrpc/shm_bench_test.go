@@ -2,6 +2,7 @@ package shmgrpc_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/fullstorydev/grpchan/shmgrpc"
 	"github.com/fullstorydev/grpchan/test_hello_service"
@@ -20,9 +21,10 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	lis := shmgrpc.Listen("http://127.0.0.1:8080/hello")
 
 	go svr.Serve(lis)
-	defer svr.Stop()
 
 	cc := shmgrpc.NewChannel("localhost", "http://127.0.0.1:8080/hello")
+
+	time.Sleep(10 * time.Second)
 
 	// grpchantesting.RunChannelTestCases(t, &cc, true)
 	test_hello_service.RunChannelBenchmarkCases(b, cc, false)

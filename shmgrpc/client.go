@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/url"
-	"path"
 	"sync"
+	"time"
 
 	"github.com/fullstorydev/grpchan/internal"
 
@@ -32,6 +31,21 @@ type Channel struct {
 	Metadata MessageMeta
 	//Lock for concurrency
 	Lock sync.Mutex
+
+	responseBuffer *bytes.Buffer
+
+	prev_time       time.Time
+	cresponseBuffer []byte
+}
+
+func (ch *Channel) timestamp_dif() string {
+	// if s.prev_time != nil {
+	// 	s.prev_time = time.Now()
+
+	// }
+	dif := time.Since(ch.prev_time).String()
+	ch.prev_time = time.Now()
+	return dif
 }
 
 type MessageMeta struct {
@@ -62,6 +76,9 @@ func NewChannel(sourceAddress string, targetAddress string) *Channel {
 	log.Info().Msgf("Client: New Channel RequestShmid: %v \n ", ch.queuePair.RequestShmaddr)
 	log.Info().Msgf("Client: New Channel RespomseShmid: %v \n ", ch.queuePair.ResponseShmaddr)
 
+	ch.responseBuffer = bytes.NewBuffer(nil)
+	ch.cresponseBuffer = make([]byte, 512)
+
 	return ch
 }
 
@@ -72,20 +89,46 @@ func (ch *Channel) incrementNumMessages() {
 
 func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp interface{}, opts ...grpc.CallOption) error {
 
+	ch.prev_time = time.Now()
+
 	// log.Info().Msgf("Client Invoke: %v ", req)
 
 	//Get Call Options for
 	copts := internal.GetCallOptions(opts)
 
-	//Get headersFromContext
-	reqUrl := ch.targetAddress
-	reqUrl.Path = path.Join(reqUrl.Path, methodName)
-	reqUrlStr := reqUrl.String()
+	// var copts internal.CallOptions
+	// for _, o := range opts {
+	// 	switch o := o.(type) {
+	// 	case grpc.HeaderCallOption:
+	// 		copts.Headers = append(copts.Headers, o.HeaderAddr)
+	// 	case grpc.TrailerCallOption:
+	// 		copts.Trailers = append(copts.Trailers, o.TrailerAddr)
+	// 	case grpc.PeerCallOption:
+	// 		copts.Peer = append(copts.Peer, o.PeerAddr)
+	// 	case grpc.PerRPCCredsCallOption:
+	// 		copts.Creds = o.Creds
+	// 	case grpc.MaxRecvMsgSizeCallOption:
+	// 		copts.MaxRecv = o.MaxRecvMsgSize
+	// 	case grpc.MaxSendMsgSizeCallOption:
+	// 		copts.MaxSend = o.MaxSendMsgSize
+	// 	}
+	// }
 
-	ctx, err := internal.ApplyPerRPCCreds(ctx, copts, fmt.Sprintf("shm:0%s", reqUrlStr), true)
-	if err != nil {
-		return err
-	}
+	// log.Info().Msgf("call options: %s", ch.timestamp_dif())
+
+	// Get headersFromContext
+	// reqUrl := ch.targetAddress
+	// reqUrl.Path = path.Join(reqUrl.Path, methodName)
+	// reqUrlStr := reqUrl.String()
+
+	// log.Info().Msgf("path handling: %s", ch.timestamp_dif())
+
+	// ctx, err := internal.ApplyPerRPCCreds(ctx, copts, fmt.Sprintf("shm:0%s", reqUrlStr), true)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// log.Info().Msgf("appply creds: %s", ch.timestamp_dif())
 
 	codec := encoding.GetCodec(grpcproto.Name)
 
@@ -93,6 +136,8 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	if err != nil {
 		return err
 	}
+
+	// log.Info().Msgf("codec marshal: %s", ch.timestamp_dif())
 
 	messageRequest := &ShmMessage{
 		Method:  methodName,
@@ -115,44 +160,61 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	var serializedMessage []byte
 	serializedMessage, err = json.Marshal(messageRequest)
 
+	// messageRequest = nil
 	if err != nil {
 		return err
 	}
+	// log.Info().Msgf("marshal: %s", ch.timestamp_dif())
 
 	//START MESSAGING
 	// pass into shared mem queue
 	// ch.Lock.Lock()
 	// log.Info().Msgf("Client: Message Sent: %v \n ", serializedMessage)
+	// runtime.LockOSThread()
 	ch.queuePair.ClientSendRpc(serializedMessage, len(serializedMessage))
+	// serializedMessage = nil
 	// ch.Lock.Unlock()
+
+	// log.Info().Msgf("send request: %s", ch.timestamp_dif())
 
 	//Receive Request
 	// ch.Lock.Lock()
-	b := bytes.NewBuffer(nil)
-	buf := make([]byte, 512)
+	// b := bytes.NewBuffer(nil)
+	// buf := make([]byte, 512)
 	//iterate and append to dynamically allocated data until all data is read
 	var size int
 	for {
-		size = ch.queuePair.ClientReceiveBuf(buf, len(buf))
+		size = ch.queuePair.ClientReceiveBuf(ch.cresponseBuffer, len(ch.cresponseBuffer))
 		// log.Info().Msgf("Client: Reads: %v", buf)
 
-		b.Write(buf)
+		ch.responseBuffer.Write(ch.cresponseBuffer)
 		if size == 0 { //Have full payload
 			break
 		}
 	} // ch.Lock.Unlock()
+	// log.Info().Msgf("receive response: %s", ch.timestamp_dif())
+
+	// runtime.UnlockOSThread()
 
 	// log.Info().Msgf("Client: Message Received: %v \n ", b.String())
 
 	var message_resp_meta ShmMessage
+
 	// json.Unmarshal(b.Bytes(), &message_resp_meta)
-	json.NewDecoder(&io.LimitedReader{N: 512, R: b}).Decode(&message_resp_meta)
+
+	decoder := json.NewDecoder(&io.LimitedReader{N: 512, R: ch.responseBuffer})
+	decoder.Decode(&message_resp_meta)
+
+	// decoder = nil
+
+	// log.Info().Msgf("decode: %s", ch.timestamp_dif())
 
 	if err != nil {
 		return err
 	}
 
-	payload := unsafeGetBytes(message_resp_meta.Payload)
+	// payload := unsafeGetBytes(message_resp_meta.Payload)
+	payload := []byte(message_resp_meta.Payload)
 
 	copts.SetHeaders(message_resp_meta.Headers)
 	copts.SetTrailers(message_resp_meta.Trailers)
@@ -172,6 +234,8 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 	// fmt.Printf("finished message num %d:", ch.Metadata.NumMessages)
 
 	ret_err := codec.Unmarshal(payload, resp)
+	// log.Info().Msgf("unmarshal: %s", ch.timestamp_dif())
+
 	return ret_err
 }
 

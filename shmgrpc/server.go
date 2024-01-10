@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -57,12 +56,24 @@ type Server struct {
 	// Listener accepting connections on a particular IP  and port
 	lis *Listener
 
+	prev_time time.Time
+
 	// Map of queue pairs for boolean of active or inactive connections
 	conns map[int]*QueuePair
 
-	ShmQueueInfo  *QueueInfo
-	responseQueue *Queue
-	requestQeuue  *Queue
+	// ShmQueueInfo  *QueueInfo
+	// responseQueue *Queue
+	// requestQeuue  *Queue
+}
+
+func (s *Server) timestamp_dif() string {
+	// if s.prev_time != nil {
+	// 	s.prev_time = time.Now()
+
+	// }
+	dif := time.Since(s.prev_time).String()
+	s.prev_time = time.Now()
+	return dif
 }
 
 type Mux func(pattern string, handler func(response_queue uintptr, request []byte))
@@ -169,6 +180,7 @@ func (s *Server) RegisterService(desc *grpc.ServiceDesc, svr interface{}) {
 // goroutine fo reach and then call the registered
 // handles for then.
 func (s *Server) Serve(lis *Listener) error {
+
 	//Handle listener setup
 	s.mu.Lock()
 	log.Info().Msgf("serving")
@@ -187,7 +199,7 @@ func (s *Server) Serve(lis *Listener) error {
 	for {
 		newQueuePair, err := lis.Accept()
 
-		if time.Since(start) > time.Second*300 {
+		if time.Since(start) > time.Second*60 {
 			break
 		}
 
@@ -256,36 +268,42 @@ func (s *Server) handleNewQueuePair(queuePair *QueuePair) {
 func (s *Server) serveRequests(queuePair *QueuePair) {
 	// defer close connection
 	// var wg sync.WaitGroup
-	b := bytes.NewBuffer(nil)
 	buf := make([]byte, 512)
+	// b := bytes.NewBuffer(buf)
 	//iterate and append to dynamically allocated data until all data is read
 	var size int
+	// s.serveWG.Add(1)
 	for {
+		// runtime.LockOSThread()
 		size = queuePair.ServerReceiveBuf(buf, len(buf))
+		s.prev_time = time.Now()
 		// log.Info().Msgf("Server: Reads: %v", buf)
 
-		b.Write(buf)
+		// b.Write(buf)
 		if size == 0 { //Have full payload
-			go func() {
-				s.handleMethod(queuePair, b)
-			}()
+			// log.Info().Msgf("handle request: %s", s.timestamp_dif())
+			s.handleMethod(queuePair, buf)
+
 		}
 	}
 	// Call handle method as we read of queue appropriately.
 }
 
-func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
+func (s *Server) handleMethod(queuePair *QueuePair, b []byte) {
 	// req := b.Bytes()
-
 	// log.Info().Msgf("Server: Message Received: %v \n ", b.String())
 
 	// Need a method to unmarshall general struct of
 	// request, JSON for now
+	// log.Info().Msgf("handle method: %s", s.timestamp_dif())
 	var message_req_meta ShmMessage
-	json.NewDecoder(&io.LimitedReader{N: 512, R: b}).Decode(&message_req_meta)
-	// json.Unmarshal(req, &message_req_meta)
+	// json.NewDecoder(&io.LimitedReader{N: 512, R:b}).Decode(&message_req_meta)
+	// json.NewDecoder().Decode(&message_req_meta)
+	json.Unmarshal(bytes.Trim(b, "\x00"), &message_req_meta)
 	// payload_buffer := unsafeGetBytes(message_req_meta.Payload)
 	payload_buffer := []byte(message_req_meta.Payload)
+
+	// log.Info().Msgf("unmarshal: %s", s.timestamp_dif())
 
 	fullName := message_req_meta.Method
 	strs := strings.SplitN(fullName[1:], "/", 2)
@@ -311,6 +329,7 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 		// service name not found
 		status.Errorf(codes.Unimplemented, "service %s not implemented", message_req_meta.Method)
 	}
+	// log.Info().Msgf("query service: %s", s.timestamp_dif())
 
 	//Get Method Descriptor
 	md := internal.FindUnaryMethod(methodName, sd.Methods)
@@ -318,6 +337,8 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 		// method name not found
 		status.Errorf(codes.Unimplemented, "method %s/%s not implemented", serviceName, methodName)
 	}
+
+	// log.Info().Msgf("find unary: %s", s.timestamp_dif())
 
 	//Get Codec for content type.
 	codec := encoding.GetCodec(grpcproto.Name)
@@ -345,6 +366,7 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 		status.Errorf(codes.Unknown, "Handler error: %s ", err.Error())
 		//TODO: Error code must be sent back to client
 	}
+	// log.Info().Msgf("handle: %s", s.timestamp_dif())
 
 	var resp_buffer []byte
 	resp_buffer, err = codec.Marshal(resp)
@@ -359,10 +381,13 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 		Trailers: sts.GetTrailers(),
 		Payload:  ByteSlice2String(resp_buffer),
 	}
+	resp_buffer = nil
 
 	var serializedMessage []byte
 
 	serializedMessage, err = json.Marshal(message_resp)
+	message_resp = nil
+	// log.Info().Msgf("marshal: %s", s.timestamp_dif())
 	if err != nil {
 		status.Errorf(codes.Unknown, "Codec Marshalling error: %s ", err.Error())
 	}
@@ -370,7 +395,14 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 	// log.Info().Msgf("Server: Message Sent: %v \n ", serializedMessage)
 
 	//Begin write back
+	if time.Since(s.prev_time) > time.Microsecond*100 {
+		log.Info().Msgf("return: %s", s.timestamp_dif())
+	}
+
+	// message := []byte("{\"method\":\"SayHello\",\"context\":{\"Context\":{\"Context\":{\"Context\":{}}}},\"headers\":null,\"trailers\":null,\"payload\":\"\\n\\u000bHello world\"}")
 	queuePair.ServerSendRpc(serializedMessage, len(serializedMessage))
+	// runtime.UnlockOSThread()
+
 }
 
 // Shutdown the server
