@@ -10,6 +10,9 @@ import (
 
 func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 
+	// debug.SetGCPercent(-1)
+	// runtime.MemProfileRate = 1
+
 	// svr := &grpchantesting.TestServer{}
 	svc := &test_hello_service.TestServer{}
 	svr := shmgrpc.NewServer("/hello")
@@ -29,5 +32,5 @@ func BenchmarkGrpcOverSharedMemory(b *testing.B) {
 	// grpchantesting.RunChannelTestCases(t, &cc, true)
 	test_hello_service.RunChannelBenchmarkCases(b, cc, false)
 
-	defer svr.Stop()
+	svr.Stop()
 }

@@ -3,7 +3,6 @@ package shmgrpc
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/fullstorydev/grpchan"
 	"github.com/fullstorydev/grpchan/internal"
+	jsoniter "github.com/json-iterator/go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/encoding"
@@ -269,7 +269,7 @@ func (s *Server) serveRequests(queuePair *QueuePair) {
 	// defer close connection
 	// var wg sync.WaitGroup
 	buf := make([]byte, 512)
-	// b := bytes.NewBuffer(buf)
+	b := bytes.NewBuffer(buf)
 	//iterate and append to dynamically allocated data until all data is read
 	var size int
 	// s.serveWG.Add(1)
@@ -279,17 +279,27 @@ func (s *Server) serveRequests(queuePair *QueuePair) {
 		s.prev_time = time.Now()
 		// log.Info().Msgf("Server: Reads: %v", buf)
 
-		// b.Write(buf)
+		b.Write(buf)
 		if size == 0 { //Have full payload
 			// log.Info().Msgf("handle request: %s", s.timestamp_dif())
-			s.handleMethod(queuePair, buf)
+			s.handleMethod(queuePair, b)
 
 		}
 	}
 	// Call handle method as we read of queue appropriately.
 }
 
-func (s *Server) handleMethod(queuePair *QueuePair, b []byte) {
+func (s *Server) Context(ctx context.Context) context.Context {
+	if ctx != nil {
+		return ctx
+	}
+	return context.Background()
+}
+
+func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
+
+	var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
 	// req := b.Bytes()
 	// log.Info().Msgf("Server: Message Received: %v \n ", b.String())
 
@@ -299,23 +309,29 @@ func (s *Server) handleMethod(queuePair *QueuePair, b []byte) {
 	var message_req_meta ShmMessage
 	// json.NewDecoder(&io.LimitedReader{N: 512, R:b}).Decode(&message_req_meta)
 	// json.NewDecoder().Decode(&message_req_meta)
-	json.Unmarshal(bytes.Trim(b, "\x00"), &message_req_meta)
+
+	decoder := json.NewDecoder(b)
+	err := decoder.Decode(&message_req_meta)
+	if err != nil {
+		log.Panic()
+	}
+
+	// json.Unmarshal(bytes.Trim(b, "\x00"), &message_req_meta)
 	// payload_buffer := unsafeGetBytes(message_req_meta.Payload)
+
 	payload_buffer := []byte(message_req_meta.Payload)
 
 	// log.Info().Msgf("unmarshal: %s", s.timestamp_dif())
+
+	//Request context
+	ctx := s.Context(message_req_meta.ctx)
 
 	fullName := message_req_meta.Method
 	strs := strings.SplitN(fullName[1:], "/", 2)
 	serviceName := strs[0]
 	methodName := strs[1]
 
-	clientCtx := message_req_meta.Context
-	if clientCtx == nil { // Temp in case of empty context.
-		clientCtx = context.Background()
-	}
-
-	clientCtx, cancel, err := contextFromHeaders(clientCtx, message_req_meta.Headers)
+	ctx, cancel, err := contextFromHeaders(ctx, message_req_meta.Headers)
 	if err != nil {
 		// writeError(w, http.StatusBadRequest)
 		return
@@ -354,12 +370,11 @@ func (s *Server) handleMethod(queuePair *QueuePair, b []byte) {
 
 	// Implements server transport stream
 	sts := internal.UnaryServerTransportStream{Name: methodName}
-	ctx := grpc.NewContextWithServerTransportStream(makeServerContext(clientCtx), &sts)
 
 	//Get resp write back
 	resp, err := md.Handler(
 		handler,
-		ctx,
+		grpc.NewContextWithServerTransportStream(ctx, &sts),
 		dec,
 		s.unaryInterceptor)
 	if err != nil {
@@ -376,7 +391,7 @@ func (s *Server) handleMethod(queuePair *QueuePair, b []byte) {
 
 	message_resp := &ShmMessage{
 		Method:   methodName,
-		Context:  ctx,
+		ctx:      ctx,
 		Headers:  sts.GetHeaders(),
 		Trailers: sts.GetTrailers(),
 		Payload:  ByteSlice2String(resp_buffer),
@@ -395,9 +410,9 @@ func (s *Server) handleMethod(queuePair *QueuePair, b []byte) {
 	// log.Info().Msgf("Server: Message Sent: %v \n ", serializedMessage)
 
 	//Begin write back
-	if time.Since(s.prev_time) > time.Microsecond*100 {
-		log.Info().Msgf("return: %s", s.timestamp_dif())
-	}
+	// if time.Since(s.prev_time) > time.Microsecond*100 {
+	// 	log.Info().Msgf("return: %s", s.timestamp_dif())
+	// }
 
 	// message := []byte("{\"method\":\"SayHello\",\"context\":{\"Context\":{\"Context\":{\"Context\":{}}}},\"headers\":null,\"trailers\":null,\"payload\":\"\\n\\u000bHello world\"}")
 	queuePair.ServerSendRpc(serializedMessage, len(serializedMessage))
@@ -420,7 +435,7 @@ func contextFromHeaders(parent context.Context, md metadata.MD) (context.Context
 	ctx := metadata.NewIncomingContext(parent, md)
 
 	// deadline propagation
-	// timeout := h.Get("GRPC-Timeout")
+	// timeout := md.Get("GRPC-Timeout")
 	// if timeout != "" {
 	// 	// See GRPC wire format, "Timeout" component of request: https://grpc.io/docs/guides/wire.html#requests
 	// 	suffix := timeout[len(timeout)-1]
@@ -455,17 +470,17 @@ type noValuesContext struct {
 	context.Context
 }
 
-func makeServerContext(ctx context.Context) context.Context {
-	// We don't want the server have any of the values in the client's context
-	// since that can inadvertently leak state from the client to the server.
-	// But we do want a child context, just so that request deadlines and client
-	// cancellations work seamlessly.
-	newCtx := context.Context(noValuesContext{ctx})
+// func makeServerContext(ctx context.Context) context.Context {
+// 	// We don't want the server have any of the values in the client's context
+// 	// since that can inadvertently leak state from the client to the server.
+// 	// But we do want a child context, just so that request deadlines and client
+// 	// cancellations work seamlessly.
+// 	newCtx := context.Context(noValuesContext{ctx})
 
-	if meta, ok := metadata.FromOutgoingContext(ctx); ok {
-		newCtx = metadata.NewIncomingContext(newCtx, meta)
-	}
-	// newCtx = peer.NewContext(newCtx, &inprocessPeer)
-	// newCtx = context.WithValue(newCtx, &clientContextKey, ctx)
-	return newCtx
-}
+// 	if meta, ok := metadata.FromOutgoingContext(ctx); ok {
+// 		newCtx = metadata.NewIncomingContext(newCtx, meta)
+// 	}
+// 	// newCtx = peer.NewContext(newCtx, &inprocessPeer)
+// 	// newCtx = context.WithValue(newCtx, &clientContextKey, ctx)
+// 	return newCtx
+// }

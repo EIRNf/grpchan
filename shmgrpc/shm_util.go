@@ -51,14 +51,39 @@ const (
 )
 
 type ShmMessage struct {
-	Method  string          `json:"method"`
-	Context context.Context `json:"context"`
+	Method string          `json:"method"`
+	ctx    context.Context `json:"omitempty"`
 	// Headers  map[string][]byte `json:"headers,omitempty"`
 	// Trailers map[string][]byte `json:"trailers,omitempty"`
 	Headers  metadata.MD `json:"headers"`
 	Trailers metadata.MD `json:"trailers"`
 	Payload  string      `json:"payload"`
 	// Payload interface{}     `protobuf:"bytes,3,opt,name=method,proto3" json:"payload"`
+}
+
+// Gets background context
+// For outgoing client requests, the context controls cancellation.
+//
+// For incoming server requests, the context is canceled when the
+// client's connection closes, the request is canceled (with HTTP/2),
+// or when the ServeHTTP method returns.
+func (mes *ShmMessage) Context(ctx context.Context) context.Context {
+	if ctx != nil {
+		return ctx
+	}
+	return context.Background()
+}
+
+// WithContext returns a shallow copy of r with its context changed
+// to ctx. The provided ctx must be non-nil.
+func (mes *ShmMessage) WithContext(ctx context.Context) *ShmMessage {
+	if ctx == nil {
+		panic("nil context")
+	}
+	mes2 := new(ShmMessage)
+	*mes2 = *mes
+	mes2.ctx = ctx
+	return mes2
 }
 
 // headersFromContext returns HTTP request headers to send to the remote host
