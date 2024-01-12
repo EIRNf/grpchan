@@ -186,22 +186,21 @@ func (s *Server) Serve(lis *Listener) error {
 	log.Info().Msgf("serving")
 
 	//TODO CASE HANDLING
-
 	s.lis = lis
 
 	s.mu.Unlock()
 	//Begin Listen//accept loop
 	//Sleep interval for null connect or previous connect
-	var tempDelay time.Duration = 4
+	var tempDelay time.Duration = 5
 	// time.Sleep(2 * time.Second)
 
-	start := time.Now()
+	// start := time.Now()
 	for {
 		newQueuePair, err := lis.Accept()
 
-		if time.Since(start) > time.Second*60 {
-			break
-		}
+		// if time.Since(start) > time.Second*60 {
+		// 	break
+		// }
 
 		if err != nil {
 			//panic
@@ -240,7 +239,6 @@ func (s *Server) Serve(lis *Listener) error {
 
 // Fork a goroutine to handle just-accepted connection
 func (s *Server) handleNewQueuePair(queuePair *QueuePair) {
-
 	//Check for quit
 
 	//Conn wrapper?
@@ -266,6 +264,7 @@ func (s *Server) handleNewQueuePair(queuePair *QueuePair) {
 // Actually handles the incoming message flow from the client
 // Invokes a go routine on a pre-declared handler function
 func (s *Server) serveRequests(queuePair *QueuePair) {
+
 	// defer close connection
 	// var wg sync.WaitGroup
 	buf := make([]byte, 512)
@@ -274,7 +273,6 @@ func (s *Server) serveRequests(queuePair *QueuePair) {
 	var size int
 	// s.serveWG.Add(1)
 	for {
-		// runtime.LockOSThread()
 		size = queuePair.ServerReceiveBuf(buf, len(buf))
 		s.prev_time = time.Now()
 		// log.Info().Msgf("Server: Reads: %v", buf)
@@ -300,24 +298,18 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 
 	var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-	// req := b.Bytes()
 	// log.Info().Msgf("Server: Message Received: %v \n ", b.String())
 
 	// Need a method to unmarshall general struct of
 	// request, JSON for now
 	// log.Info().Msgf("handle method: %s", s.timestamp_dif())
 	var message_req_meta ShmMessage
-	// json.NewDecoder(&io.LimitedReader{N: 512, R:b}).Decode(&message_req_meta)
-	// json.NewDecoder().Decode(&message_req_meta)
 
 	decoder := json.NewDecoder(b)
 	err := decoder.Decode(&message_req_meta)
 	if err != nil {
 		log.Panic()
 	}
-
-	// json.Unmarshal(bytes.Trim(b, "\x00"), &message_req_meta)
-	// payload_buffer := unsafeGetBytes(message_req_meta.Payload)
 
 	payload_buffer := []byte(message_req_meta.Payload)
 
@@ -410,13 +402,8 @@ func (s *Server) handleMethod(queuePair *QueuePair, b *bytes.Buffer) {
 	// log.Info().Msgf("Server: Message Sent: %v \n ", serializedMessage)
 
 	//Begin write back
-	// if time.Since(s.prev_time) > time.Microsecond*100 {
-	// 	log.Info().Msgf("return: %s", s.timestamp_dif())
-	// }
-
 	// message := []byte("{\"method\":\"SayHello\",\"context\":{\"Context\":{\"Context\":{\"Context\":{}}}},\"headers\":null,\"trailers\":null,\"payload\":\"\\n\\u000bHello world\"}")
 	queuePair.ServerSendRpc(serializedMessage, len(serializedMessage))
-	// runtime.UnlockOSThread()
 
 }
 

@@ -74,7 +74,7 @@ func BenchmarkUnaryLatency(b *testing.B, cli TestServiceClient) {
 
 func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 
-	bench := hrtime.NewBenchmark(20000)
+	bench := hrtime.NewBenchmark(200000)
 
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.MD{})
 
@@ -105,6 +105,6 @@ func BenchmarkHelloHistogram(b *testing.B, cli TestServiceClient) {
 	fmt.Printf("Throughput: %f \n", float64(len(runs))/b.Elapsed().Seconds())
 
 	bench.Laps()
-	fmt.Printf("Runs: %v :", bench.Laps())
+	// fmt.Printf("Runs: %v :", bench.Laps())
 
 }

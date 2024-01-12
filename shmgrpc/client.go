@@ -92,41 +92,11 @@ func (ch *Channel) incrementNumMessages() {
 func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp interface{}, opts ...grpc.CallOption) error {
 
 	var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-	// jsoniter.RegisterTypeDecoderFunc("context", func(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
-	// 	s := iter.ReadString()
-	// 	if len(s) == 0 { //Empty string
-	// 		*((*context.Context)(ptr)) = nil
-	// 	} else {
-	// 		*((*context.Context)(ptr)) = jsoniter.op
-	// 	}
-
-	// })
-
-	ch.prev_time = time.Now()
-
+	// ch.prev_time = time.Now()
 	// log.Info().Msgf("Client Invoke: %v ", req)
 
 	//Get Call Options for
 	copts := internal.GetCallOptions(opts)
-
-	// var copts internal.CallOptions
-	// for _, o := range opts {
-	// 	switch o := o.(type) {
-	// 	case grpc.HeaderCallOption:
-	// 		copts.Headers = append(copts.Headers, o.HeaderAddr)
-	// 	case grpc.TrailerCallOption:
-	// 		copts.Trailers = append(copts.Trailers, o.TrailerAddr)
-	// 	case grpc.PeerCallOption:
-	// 		copts.Peer = append(copts.Peer, o.PeerAddr)
-	// 	case grpc.PerRPCCredsCallOption:
-	// 		copts.Creds = o.Creds
-	// 	case grpc.MaxRecvMsgSizeCallOption:
-	// 		copts.MaxRecv = o.MaxRecvMsgSize
-	// 	case grpc.MaxSendMsgSizeCallOption:
-	// 		copts.MaxSend = o.MaxSendMsgSize
-	// 	}
-	// }
 
 	// log.Info().Msgf("call options: %s", ch.timestamp_dif())
 
@@ -161,21 +131,10 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		Payload: ByteSlice2String(serializedPayload),
 	}
 
-	// Create a fixed-length byte array
-	// var byteArray [unsafe.Sizeof(messageRequest)]byte
-
-	// Copy the bytes of the struct into the byte array
-	// messageRequestBytes := *(*[unsafe.Sizeof(messageRequest)]byte)(unsafe.Poier(&messageRequest))
-	// messageRequestBytes := fmt.Sprintf("%+v\n", messageRequest)
-	// copy(byteArray[:], messageRequestBytes[:])
-
 	// we have the meta request
 	// Marshall to build rest of system
-
 	var serializedMessage []byte
 	serializedMessage, err = json.Marshal(messageRequest)
-
-	// messageRequest = nil
 	if err != nil {
 		return err
 	}
@@ -183,19 +142,11 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 
 	//START MESSAGING
 	// pass into shared mem queue
-	// ch.Lock.Lock()
-	// log.Info().Msgf("Client: Message Sent: %v \n ", serializedMessage)
-	// runtime.LockOSThread()
 	ch.queuePair.ClientSendRpc(serializedMessage, len(serializedMessage))
-	// serializedMessage = nil
-	// ch.Lock.Unlock()
 
 	// log.Info().Msgf("send request: %s", ch.timestamp_dif())
 
 	//Receive Request
-	// ch.Lock.Lock()
-	// b := bytes.NewBuffer(nil)
-	// buf := make([]byte, 512)
 	//iterate and append to dynamically allocated data until all data is read
 	var size int
 	for {
@@ -206,27 +157,14 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		if size == 0 { //Have full payload
 			break
 		}
-	} // ch.Lock.Unlock()
+	}
 	// log.Info().Msgf("receive response: %s", ch.timestamp_dif())
-
-	// runtime.UnlockOSThread()
 
 	// log.Info().Msgf("Client: Message Received: %v \n ", b.String())
 
 	var message_resp_meta ShmMessage
-
-	// json.Unmarshal(b.Bytes(), &message_resp_meta)
-
-	// fmt.Printf("resp message: %v", ch.responseBuffer.String())
-
-	// err = ffjson.NewDecoder().DecodeReader(ch.responseBuffer, &message_resp_meta)
 	dec := json.NewDecoder(ch.responseBuffer)
 	err = dec.Decode(&message_resp_meta)
-
-	// decoder := json.NewDecoder(&io.LimitedReader{N: 512, R: ch.responseBuffer})
-	// decoder.Decode(&message_resp_meta)
-	// decoder = nil
-	// json.Unmarshal(bytes.Trim(b, "\x00"))
 
 	// log.Info().Msgf("decode: %s", ch.timestamp_dif())
 
@@ -234,20 +172,10 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 		return err // TODO BAD
 	}
 
-	// payload := unsafeGetBytes(message_resp_meta.Payload)
 	payload := []byte(message_resp_meta.Payload)
 
 	copts.SetHeaders(message_resp_meta.Headers)
 	copts.SetTrailers(message_resp_meta.Trailers)
-
-	// ipc.Msgctl(qid, ipc.IPC_RMID)
-	// var ret_err error
-	// if !cserPayloadRespWritten {
-	// copy(cserPayloadResp, resp)
-
-	// cserPayloadRespWritten = true
-	// }
-	// resp = cserPayloadResp
 
 	//Update total number of back and forth messages
 	ch.incrementNumMessages()
@@ -268,7 +196,6 @@ func (ch *Channel) Invoke(ctx context.Context, methodName string, req, resp inte
 
 	ret_err := codec.Unmarshal(payload, resp)
 	// log.Info().Msgf("unmarshal: %s", ch.ztimestamp_dif())
-
 	return ret_err
 }
 

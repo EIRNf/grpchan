@@ -11,8 +11,7 @@ import (
 func main() {
 
 	f, _ := os.Create("bench.prof")
-
-	pprof.StartCPUProfile(f)
+	pprof.WriteHeapProfile(f)
 
 	// svr := &grpchantesting.TestServer{}
 	svc := &test_hello_service.TestServer{}
@@ -25,7 +24,7 @@ func main() {
 	lis := shmgrpc.Listen("http://127.0.0.1:8080/hello")
 
 	svr.Serve(lis)
-	defer pprof.StopCPUProfile()
+	defer f.Close()
 	defer svr.Stop()
 
 }
