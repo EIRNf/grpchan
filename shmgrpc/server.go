@@ -51,7 +51,7 @@ type Server struct {
 
 	// ErrorLog *log.Logger
 
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// Listener accepting connections on a particular IP  and port
 	lis *Listener
@@ -59,7 +59,9 @@ type Server struct {
 	prev_time time.Time
 
 	// Map of queue pairs for boolean of active or inactive connections
-	conns map[int]*QueuePair
+	// conns map[int]*QueuePair
+
+	conns sync.Map
 
 	// ShmQueueInfo  *QueueInfo
 	// responseQueue *Queue
@@ -144,8 +146,9 @@ func NewServer(basePath string, opts ...ServerOption) *Server {
 		o.apply(&s)
 	}
 
-	s.conns = make(map[int]*QueuePair)
+	// s.conns = make(map[int]*QueuePair)
 
+	s.conns = sync.Map{}
 	return &s
 }
 
@@ -184,10 +187,8 @@ func (s *Server) Serve(lis *Listener) error {
 	//Handle listener setup
 	s.mu.Lock()
 	log.Info().Msgf("serving")
-
 	//TODO CASE HANDLING
 	s.lis = lis
-
 	s.mu.Unlock()
 	//Begin Listen//accept loop
 	//Sleep interval for null connect or previous connect
@@ -213,24 +214,27 @@ func (s *Server) Serve(lis *Listener) error {
 			time.Sleep(tempDelay * time.Second)
 			continue
 		}
-		s.mu.Lock()
-		_, ok := s.conns[newQueuePair.ClientId]
-		s.mu.Unlock()
+		// s.mu.Lock()
+
+		_, ok := s.conns.Load(newQueuePair.ClientId)
+
+		// _, ok := s.conns[newQueuePair.ClientId]
+		// s.mu.Unlock()
 		if ok { //Queue pair already exists
 			log.Info().Msgf("already served queue_pair: %v", newQueuePair)
 			// We are already servicing this queue
 			time.Sleep(tempDelay * time.Second)
 			continue
 		} else {
-			s.mu.Lock()
-			s.conns[newQueuePair.ClientId] = newQueuePair
-			s.mu.Unlock()
 			//Start a new goroutine to deal with the new queuepair
-			s.serveWG.Add(1)
-			go func() {
+			s.conns.Store(newQueuePair.ClientId, newQueuePair)
+
+			// s.serveWG.Add(1)
+			go func() { //				s.handleNewQueuePair(s.conns[newQueuePair.ClientId])
 				s.handleNewQueuePair(newQueuePair)
-				s.serveWG.Done()
+				// s.serveWG.Done()
 			}()
+			// time.Sleep(tempDelay * time.Second)
 		}
 	}
 	return nil
@@ -248,6 +252,7 @@ func (s *Server) handleNewQueuePair(queuePair *QueuePair) {
 	//Add to map
 	// s.mu.Lock()
 	// s.conns[queuePair.ClientId] = queuePair
+	// s.conns.Store(queuePair.ClientId, queuePair)
 	// s.mu.Unlock()
 
 	log.Info().Msgf("New client connection: %v", queuePair)
